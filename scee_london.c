@@ -1,6 +1,6 @@
 // Written by Edness
-#define VERSION "v1.0"
-#define DATE "2024-07-13 - 2024-07-19"
+#define VERSION "v1.0.1"
+#define DATE "2024-07-13 - 2024-08-07"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -10,9 +10,8 @@
 
 
 /* MISSING KEYS:
- *  SingStar (Norway)     // most likely unique keys
- *  SingStar SuomiBileet  // same as MegaHits/Nova Geracao/Ultimate Party?
- *  SingStar SuomiPop */  // same as the common 0x7C828290 key?
+ *  SingStar (Norway)       // most likely unique keys
+ *  SingStar SuomiBileet */ // same as MegaHits/Nova Geracao/Ultimate Party?
 static const uint32_t keys[][4] = {
     {0xE2AC48C5, 0x1C511D8E, 0x8158606D, 0x8086ED1D}, // SingStar (Europe) (Pack0.pkd)
     {0xD2229BCB, 0xE9D5207A, 0x88960EEB, 0x7A848797}, // SingStar (Europe) (Pack1.pkd)
@@ -72,6 +71,7 @@ static const uint32_t keys[][4] = {
      * SingStar Hits 2
      * SingStar Pop 2009
      * SingStar Pop Edition
+     * SingStar SuomiPop
      * SingStar Queen
      * SingStar Vol. 2 (USA)
      * SingStar Vol. 3 */
