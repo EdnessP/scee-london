@@ -1,4 +1,3 @@
 [submodule "src/miniz"]
 	path = src/miniz
 	url = https://github.com/richgel999/miniz.git
-	branch = master
