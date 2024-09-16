@@ -1,7 +1,7 @@
 // SCEE London Studios PS3 PACKAGE tool
 #define AUTHOR "Edness"
 #define VERSION "v1.1"
-#define BUILDDATE "2024-07-13 - 2024-09-15"
+#define BUILDDATE "2024-07-13 - 2024-09-17"
 
 #define _FILE_OFFSET_BITS 64
 #define _CRT_SECURE_NO_WARNINGS
@@ -134,7 +134,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
     uint8_t *hdr_c = NULL;
     uint64_t *hdr_i = NULL;
 
-    FILE* out_file = NULL;
+    FILE *out_file = NULL;
 
 
     //strncpy(pkd.buf, "PACKAGE ", sizeof(pkd.buf));
