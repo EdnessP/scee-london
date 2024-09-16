@@ -1,121 +1,98 @@
-// Written by Edness
-#define VERSION "v1.0.1"
-#define DATE "2024-07-13 - 2024-08-07"
+// SCEE London Studios PS3 PACKAGE tool
+#define AUTHOR "Edness"
+#define VERSION "v1.1"
+#define BUILDDATE "2024-07-13 - 2024-09-15"
+
+#define _FILE_OFFSET_BITS 64
+#define _CRT_SECURE_NO_WARNINGS
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
-#define PATH_LEN 0x1000
+#include "pkd_keys.h"
+#include "reader.h"
 
 
-/* MISSING KEYS:
- *  SingStar (Norway)       // most likely unique keys
- *  SingStar SuomiBileet */ // same as MegaHits/Nova Geracao/Ultimate Party?
-static const uint32_t keys[][4] = {
-    {0xE2AC48C5, 0x1C511D8E, 0x8158606D, 0x8086ED1D}, // SingStar (Europe) (Pack0.pkd)
-    {0xD2229BCB, 0xE9D5207A, 0x88960EEB, 0x7A848797}, // SingStar (Europe) (Pack1.pkd)
-    {0x283A57E8, 0x0AF6634E, 0x0EF89D6E, 0x91F4DBF6}, // SingStar (France) (Pack0.pkd)
-    {0xB370301E, 0x6AB604B3, 0xA141CE8D, 0xB901D782}, // SingStar (France) (Pack1.pkd)
-    {0x5413789E, 0xFD0D1A78, 0x03E298F2, 0x6FA496BD}, // SingStar (Germany) (Pack0.pkd)
-    {0x6A738A85, 0x077231A7, 0xDE34B9B2, 0xB1EF5267}, // SingStar (Germany) (Pack1.pkd)
-    {0xA2796382, 0x3F1C41CD, 0xE0F313BA, 0x608C428C}, // SingStar (Spain) (Pack0.pkd)
-    {0x2345B083, 0xC41236D0, 0xD6FA981C, 0x6283311C}, // SingStar (Spain) (Pack1.pkd)
-    {0x281446BC, 0xB01F295D, 0x09C2221E, 0xEE62AA61}, // SingStar (USA) (Pack0.pkd)
-    {0xC37BA848, 0xB74458BB, 0x4B76918A, 0x8F3FF005}, // SingStar (USA) (Pack1.pkd)
+#if defined(WIN32) || defined(_WIN32) || defined(_WIN64)
+    #define HELP_USAGE_IN "X:\\path\\to\\pack.pkd"
+    #define HELP_USAGE_OUT "X:\\path\\to\\out_dir"
+    #define PATH_LEN 260
+    #define PATH_SEP "\\/"
+    #include <windows.h>
 
-    {0x2483FFDC, 0x047F8CAD, 0xF60BB511, 0xDE5A6FA2}, // SingStar Vol. 2 (Europe) (Pack0.pkd)
-    {0xABB91BF7, 0xF7878BCD, 0xDC5E5E70, 0x6BAD1B53}, // SingStar Vol. 2 (Europe) (Pack1.pkd)
-    {0xA78BD9D2, 0x64EC0B1D, 0xAF1B864D, 0xD748FC01}, // SingStar Vol. 2 (Europe) (Pack2.pkd)
-    {0x29FDD214, 0xF800E98D, 0x4F27CD54, 0x92C90B5D}, // SingStar Vol. 2 (Germany) (Pack0.pkd)
-    {0x724D1992, 0x08F6098A, 0xA217280A, 0xB78FF59B}, // SingStar Vol. 2 (Germany) (Pack1.pkd)
-    {0x8CF91E93, 0x205C6579, 0x8717D03A, 0xBCD381A8}, // SingStar Vol. 2 (Germany) (Pack2.pkd)
-    {0xE2C2DC1C, 0x5BE0EB60, 0x8E5A25CE, 0x231AB94E}, // SingStar Vol. 2 (Italy) (Pack0.pkd)
-    {0x7CF309D6, 0x42F2BF27, 0xF13D34A9, 0xD44E40C0}, // SingStar Vol. 2 (Italy) (Pack1.pkd)
-    {0xF67ECBE0, 0x59C79B2F, 0xD484C5BA, 0x339ACD6E}, // SingStar Vol. 2 (Italy) (Pack2.pkd)
-    {0xD7D1D111, 0x9CF4E35E, 0x078F63E6, 0x8952F1A6}, // SingStar Vol. 2 (Spain) (Pack0.pkd)
-    {0x52FBCF90, 0x870127F1, 0x93EB12DA, 0x3DEACB34}, // SingStar Vol. 2 (Spain) (Pack1.pkd)
-    {0x16050B5E, 0xD8E1AE59, 0x4D7EBFD9, 0xE0DFD4ED}, // SingStar Vol. 2 (Spain) (Pack2.pkd)
+    #define create_dir(path) CreateDirectoryA(path, NULL)
+    #define get_abspath(path, out) GetFullPathNameA(path, PATH_LEN, out, NULL)
 
-    /* LegacyPS2Discs.pkd
-     * SingStar Chart Hits
-     * SingStar Chartbreaker
-     * SingStar Dance
-     * SingStar Fussballhits
-     * SingStar Guitar
-     * SingStar Intro
-     * SingStar Kent
-     * SingStar Latino
-     * SingStar Made in Germany
-     * SingStar Mallorca Party
-     * SingStar Mecano
-     * SingStar Morangos com Acucar
-     * SingStar Motown
-     * SingStar Polskie Hity
-     * SingStar Polskie Hity 2
-     * SingStar Portugal Hits
-     * SingStar Queen
-     * SingStar Starter Pack
-     * SingStar Studio 100
-     * SingStar SuomiHitit
-     * SingStar Svenska Stjaernor
-     * SingStar Take That
-     * SingStar Vasco
-     * SingStar Viewer (v01.00) */
-    {0x7C828290, 0x7C82C550, 0xFFFFFFFF, 0x7C82C549},
+    #define IS_WINDOWS
 
-    /* LegacyPS2Discs.pkd
-     * SingStar A Tutto Pop
-     * SingStar ABBA
-     * SingStar Hits
-     * SingStar Hits 2
-     * SingStar Pop 2009
-     * SingStar Pop Edition
-     * SingStar SuomiPop
-     * SingStar Queen
-     * SingStar Vol. 2 (USA)
-     * SingStar Vol. 3 */
-    {0x7C828270, 0x7C82C530, 0xFFFFFFFF, 0x7C82C529},
+#elif defined(__unix__) || defined(__APPLE__)
+    #define HELP_USAGE_IN "/path/to/pack.pkd"
+    #define HELP_USAGE_OUT "/path/to/out_dir"
+    #define PATH_LEN 0x1000
+    #define PATH_SEP "/"
+    #include <sys/stat.h>
 
-    /* DanceStar Party
-     * Everybody Dance
-     * SingStar Back to the 80s
-     * SingStar Grandes Exitos
-     * SingStar Return to the 80s
-     * SingStar SuomiSuosikit
-     * SingStar Viewer (v07.00) */
-    {0x7D61F218, 0x7D624BC0, 0xFFFFFFFF, 0x7D624BB9},
+    #define create_dir(path) mkdir(path, 0644)
+    #define get_abspath(path, out) realpath(path, out) // i wish this was better
 
-    /* DanceStar Party Hits
-     * Everybody Dance 2
-     * Everybody Dance 3
-     * SingStar Digital
-     * SingStar SuomiHelmet
-     * SingStar SuomiHuiput */
-    {0x7D61F218, 0x7D624728, 0xFFFFFFFF, 0x7D624721},
+    #define IS_UNIX
 
-    /* SingStar Afrikaanse Treffers
-     * SingStar Apres-Ski Party 2
-     * SingStar Cantautori Italiani
-     * SingStar Danske Hits
-     * SingStar Patito Feo
-     * SingStar The Wiggles */
-    {0x7D61F218, 0x7D624BC8, 0xFFFFFFFF, 0x7D624BC1},
-
-    /* SingStar MegaHits
-     * SingStar Nova Geracao
-     * SingStar Ultimate Party */
-    {0x7734DFA5, 0x68000068, 0x00000017, 0x00000000},
-
-    {0x7755DFA5, 0x68000068, 0x00000017, 0x00000000}, // SingStar Frozen
-
-    {0x00000000, 0x00000000, 0x00000000, 0x00000000}  // Errata.pkd, LegacyPS2Discs.pkd
-};
+#endif
 
 
-static uint64_t get_xtea_xor_key(const uint32_t v[2], const uint32_t key[4]) {
-    uint32_t v0 = v[0], v1 = v[1];
+static FILE *open_mkdir(const char *base_path, char *file_path) {
+    char out_path[PATH_LEN];
+    //char *dir = &out_path;
+    int i = 0, j = 0;
+
+
+#ifdef IS_UNIX
+    while (file_path[j]) {
+        if (file_path[j] == '\\')
+            file_path[j] = '/';
+        j++;
+    }
+#endif
+    snprintf(out_path, PATH_LEN, "%s/%s", base_path, file_path);
+
+    // strtok also handles skipping doubles
+    /*
+    printf("%s\n", out_path);
+    dirs = strtok(out_path, PATH_SEP);
+    while (dirs) {
+        printf("%s\n", dirs);
+        dirs = strtok(NULL, PATH_SEP);
+    }
+    */
+    while (out_path[i]) {
+        j = 0; // variable amount of valid separators
+        while (PATH_SEP[j]) {
+            if (out_path[i] == PATH_SEP[j]) {
+                out_path[i] = '\x00';
+                create_dir(out_path);
+                out_path[i] = PATH_SEP[0];
+                break;
+            }
+            j++;
+        }
+        i++;
+    }
+
+    return fopen(out_path, "wb");
+}
+
+
+union {
+    uint64_t xor;
+    uint8_t buf[8];
+} pkd = {0};
+
+
+static uint64_t get_xtea_xor_key(uint32_t v1, const uint32_t key[4]) {
     uint32_t delta = 0x9E3779B9;
+    uint32_t v0 = 0x12345678; // iv[0] const
     uint32_t sum = 0;
 
     for (int i = 0; i < 8; i++) {
@@ -128,73 +105,255 @@ static uint64_t get_xtea_xor_key(const uint32_t v[2], const uint32_t key[4]) {
 }
 
 
-static int decrypt_pkd(FILE *in_file, FILE *out_file) {
-    uint64_t size;
-    uint8_t remainder;
+static inline char read_chunk(FILE *in_file, const uint8_t read, const int8_t encrypted, const uint32_t iv, const uint32_t key) {
 
-    uint32_t idx = 0;
-    uint32_t iv[2] = {0x12345678, 0x00000000};
-    int num_keys = sizeof(keys) / sizeof(keys[0]);
-
-    int target_key = -1;
-    uint64_t target_hdr;
-
-    union {
-        uint64_t xor;
-        uint8_t buf[8];
-    } pkd = {0};
-
-
-    strncpy(pkd.buf, "PACKAGE ", sizeof(pkd.buf));
-    target_hdr = pkd.xor; // 0x204547414B434150;
-
-
-    // find the correct key
-    if (!fread(pkd.buf, sizeof(pkd.buf), 1, in_file)) {
-        printf("Invalid PKD file!\n");
+    if (!fread(pkd.buf, read, 1, in_file)) {
+        printf("Failed to read PACKAGE file data!\n");
         return -1;
     }
-    if (pkd.xor == target_hdr) {
-        printf("File is already decrypted!\n");
-        return -1;
-    }
-    for (int i = 0; i < num_keys; i++) {
-        if ((pkd.xor ^ get_xtea_xor_key(iv, keys[i])) == target_hdr) {
-            //printf("Found key: %08X_%08X_%08X_%08X\n", keys[i][0], keys[i][1], keys[i][2], keys[i][3]);
-            target_key = i;
-            break;
-        }
-    }
-    if (target_key == -1) {
-        printf("Failed to determine PKD key!\n");
-        return -1;
-    }
-
-
-    // decrypt pkd to pkf
-    _fseeki64(in_file, 0x0, SEEK_END);
-    size = _ftelli64(in_file);
-    _fseeki64(in_file, 0x0, SEEK_SET);
-
-    remainder = size & 0x7;
-
-    while (fread(pkd.buf, sizeof(pkd.buf), 1, in_file)) {
-        iv[1] = idx++;
-        pkd.xor ^= get_xtea_xor_key(iv, keys[target_key]);
-        fwrite(pkd.buf, sizeof(pkd.buf), 1, out_file);
-    }
-    iv[1] = idx;
-    pkd.xor ^= get_xtea_xor_key(iv, keys[target_key]);
-    fwrite(pkd.buf, remainder, 1, out_file);
+    if (encrypted)
+        pkd.xor ^= get_xtea_xor_key(iv, keys[key]);
 
     return 0;
 }
 
 
-void print_err_usage(const char *msg) {
+static int extract_package(FILE *in_file, const char *out_path) {
+    uint8_t size;
+    uint16_t flags;
+    uint32_t hdr_size, hdr_align, hdr_offs;
+    uint8_t hdr_end_read;
+
+    uint32_t iv = 0x00000000;
+
+    char encrypted = 1;
+    int target_key = -1;
+    //uint32_t key[4] = keys[num_keys - 1];
+    uint64_t target_hdr;
+
+    uint8_t *hdr_c = NULL;
+    uint64_t *hdr_i = NULL;
+
+    FILE* out_file = NULL;
+
+
+    //strncpy(pkd.buf, "PACKAGE ", sizeof(pkd.buf));
+    target_hdr = 0x204547414B434150; // pkd.xor;
+
+
+    // find the correct key
+    if (!fread(pkd.buf, sizeof(pkd.buf), 1, in_file)) {
+        printf("Invalid PACKAGE file!\n");
+        goto fail;
+    }
+    if (pkd.xor == target_hdr) {
+        //printf("File is already decrypted!\n");
+        encrypted = 0;
+    }
+
+    if (encrypted) {
+        target_hdr ^= pkd.xor;
+        for (int i = 0; i < num_keys; i++) {
+            if ((get_xtea_xor_key(iv, keys[i])) == target_hdr) {
+                target_key = i;
+            }
+        }
+        if (target_key == -1) {
+            printf("Failed to determine PKD key!\n");
+            goto fail;
+        }
+    }
+
+
+    // decrypt pkd to pkf
+    //_fseeki64(in_file, 0x0, SEEK_END);
+    //size = _ftelli64(in_file);
+    fseek(in_file, 0x0, SEEK_SET);
+
+
+    /*
+    uint8_t remainder = size & 0x7;
+
+    while (fread(pkd.buf, sizeof(pkd.buf), 1, in_file)) {
+        pkd.xor ^= get_xtea_xor_key(iv++, target_key);
+        fwrite(pkd.buf, sizeof(pkd.buf), 1, out_file);
+    }
+    pkd.xor ^= get_xtea_xor_key(iv, target_key);
+    fwrite(pkd.buf, remainder, 1, out_file);
+    return 0;
+    */
+
+
+    //char header[0x18];
+    //union {
+    //    uint64_t xor[3];
+    //    uint8_t buf[0x18];
+    //} hdr = {0};
+    //if (!fread(hdr.buf, sizeof(hdr.buf), 1, in_file)) {
+
+
+    /******************/
+    /* INITIALISATION */
+    /******************/
+    hdr_c = (uint8_t *)malloc(0x18);
+    hdr_i = (uint64_t *)hdr_c;
+
+    if (hdr_c == NULL) {
+        printf("Failed to allocate memory!\n");
+        goto fail;
+    }
+
+    for (/*iv = 0*/; iv < 3; iv++) {
+        if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv, target_key)) goto fail;
+        hdr_i[iv] = pkd.xor;
+    }
+
+    /*
+    printf("%08X\n", read_32le(hdr_c, 0x8));
+    printf("%04X\n", read_16be(hdr_c, 0xC));
+    printf("%08X\n", read_32be(hdr_c, 0xE));
+    printf("%016llX\n", read_be(hdr_c, 0xE, 8));
+    */
+    if (read_32le(hdr_c, 0x8) != 1) {
+        printf("Invalid PACKAGE header configuration!\n");
+        goto fail;
+    }
+    flags = read_16be(hdr_c, 0xC);
+    // bit 0 is a 64-bit integer flag
+    size = (flags & 0x1) ? 0x4 : 0x8;
+    hdr_offs = 0xE + size;
+    // bits 1 and 2 are always set?  the rest are always zero?
+    if (!(flags & 0x2) || !(flags & 0x4) || (flags & ~0x7)) {
+        printf("Invalid PACKAGE header configuration!\n");
+        goto fail;
+    }
+    hdr_size = read_be(hdr_c, 0xE, size) + hdr_offs;
+    hdr_end_read = hdr_size & 0x7;
+    hdr_align = hdr_size + (0x8 - hdr_end_read);
+    
+    hdr_c = (uint8_t *)realloc(hdr_c, hdr_align);
+    hdr_i = (uint64_t *)hdr_c;
+
+    if (hdr_c == NULL) {
+        printf("Failed to allocate memory!\n");
+        goto fail;
+    }
+
+    //hdr_align >>= 3; // div 8
+    hdr_align = hdr_size >> 3;
+    for (/*iv = 3*/; iv < hdr_align; iv++) {
+        if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv, target_key)) goto fail;
+        hdr_i[iv] = pkd.xor;
+    }
+    if (hdr_end_read) {
+        if (read_chunk(in_file, hdr_end_read, encrypted, iv, target_key)) goto fail;
+        hdr_i[iv] = pkd.xor;
+    }
+
+
+    /**************/
+    /* EXTRACTION */
+    /**************/
+    char file_name[256];
+    while (hdr_offs < hdr_size) {
+        uint32_t name_hash;
+        //int32_t name_size;
+        uint64_t file_offs, file_size;
+        //uint64_t start_align, end_align;
+
+        uint32_t end_chunk;
+        uint64_t start_offs, end_offs;
+        uint8_t start_skip, start_read, end_read;
+
+
+        name_hash = read_32be(hdr_c, hdr_offs); hdr_offs += 4;
+        // strncpy or something, return strlen, also check for -1?
+        hdr_offs += read_str(hdr_c, hdr_offs, file_name);
+
+        // maybe make the reads advance the offset with &hdr_offs
+        file_offs = read_be(hdr_c, hdr_offs, size); hdr_offs += size;
+        file_size = read_be(hdr_c, hdr_offs, size); hdr_offs += size;
+
+        //hdr_offs += 4 + size * 2 + str_len;
+        //printf("Read 0x%08X bytes from 0x%08X that hashes to 0x%08X for %s\n", file_size, file_offs, name_hash, file_name);
+        printf("Extracting %s\n", file_name);
+
+        out_file = open_mkdir(out_path, file_name);
+        if (!out_file) {
+            printf("Failed to open the output file! Is it in a read-only location?\n");
+            goto fail;
+        }
+
+
+        start_skip = file_offs & 0x7;
+        start_offs = file_offs - start_skip;
+        start_read = 0x8 - start_skip;
+
+        end_offs = file_offs + file_size;
+        end_read = end_offs & 0x7;
+        // not aligning end offset, because it will be outside of the loop
+
+        //chunks = (file_size - start_read - end_read) >> 3;
+        //chunks = (start_skip + file_size) >> 3;
+        end_chunk = (end_offs - end_read) >> 3;
+        iv = start_offs >> 3;
+
+        // i cba to deal with non-standardized 64-bit seeks
+        fsetpos(in_file, (fpos_t *)&start_offs);
+
+        // file is empty
+        if (!file_size) {
+            fclose(out_file);
+            continue;
+        }
+
+        // file is small enough to fit in a chunk
+        if (file_size <= start_read) {
+            if (read_chunk(in_file, start_skip + file_size, encrypted, iv, target_key)) goto fail;
+            fwrite(&pkd.buf[start_skip], file_size, 1, out_file);
+            fclose(out_file);
+            continue;
+        }
+
+        // unaligned start chunk
+        if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv++, target_key)) goto fail;
+        fwrite(&pkd.buf[start_skip], start_read, 1, out_file);
+
+        // if file_size > 8, read both and check if it starts with "ZLIB" or "ERDA"
+        //uint32_t zlib = 'ZLIB'; // -Wmultichar warning, whatever
+
+        // aligned main chunks
+        for (; iv < end_chunk; iv++) {
+            if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv, target_key)) goto fail;
+            fwrite(pkd.buf, sizeof(pkd.buf), 1, out_file);
+        }
+
+        // unaligned end chunk
+        // using sizeof(pkd.buf) may cause an EOF error on the final file
+        if (end_read) {
+            if (read_chunk(in_file, end_read, encrypted, iv, target_key)) goto fail;
+            fwrite(pkd.buf, end_read, 1, out_file);
+        }
+
+        fclose(out_file);
+    }
+
+
+    free(hdr_c);
+    return 0;
+
+fail:
+    if (out_file)
+        fclose(out_file);
+    free(hdr_c);
+    return -1;
+}
+
+
+static void print_err_usage(const char *msg) {
     printf(
-        "Usage:    \"/path/to/encrypted.pkd\"\n"
-        "Optional: \"/path/to/encrypted.pkd\" \"/path/to/decrypted.pkf\"\n"
+        "Usage:    \"" HELP_USAGE_IN "\"\n"
+        "Optional: \"" HELP_USAGE_IN "\" \"" HELP_USAGE_OUT "\"\n"
 
         "\nError: %s\n", msg
     );
@@ -202,52 +361,54 @@ void print_err_usage(const char *msg) {
 
 
 int main(int argc, char *argv[]) {
-    FILE *in_file = NULL, *out_file = NULL;
+    FILE *in_file = NULL;
+    char abs_path[PATH_LEN];
     char out_path[PATH_LEN];
 
-    printf("SCEE London Studio .PKD decryptor - " VERSION " - Written by Edness\n\n");
-
-    //for (int i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) printf("(0x%08X, 0x%08X, 0x%08X, 0x%08X),\n", keys[i][0], keys[i][1], keys[i][2], keys[i][3]);
+    printf(
+        "SCEE London Studio PACKAGE extractor\n"
+        "Written by " AUTHOR "   " VERSION "\n"
+        BUILDDATE "\n\n"
+    );
 
     if (argc < 2) {
         print_err_usage("Not enough arguments!\n");
         return -1;
     }
 
+    //LPWSTR a = GetCommandLineW(); // cba to deal with this
     in_file = fopen(argv[1], "rb");
     if (!in_file) {
         print_err_usage("Failed to open the input file!\n");
+#ifdef IS_WINDOWS
+        if (strchr(argv[1], '?'))
+            printf("Path may contain unicode characters not supported by the current codepage!\n");
+#endif
         goto fail;
     }
 
     //snprintf(out_path, PATH_LEN, "%s", argc > 2 ? argv[2] : argv[1]);
     if (argc == 2)
-        snprintf(out_path, PATH_LEN, "%s.dec", argv[1]);
+        snprintf(out_path, PATH_LEN, "%s_out", argv[1]);
     else
         snprintf(out_path, PATH_LEN, "%s", argv[2]);
+    // due to linux/posix shenanigans, the initial absolute path has to be pregenerated here
+    // because unlike windows, i can't easily generate a proper canonical path. if there are
+    // multiple nonexistent subdirs user wants to dump this to, it'll only go to the 1st one
+    get_abspath(out_path, abs_path);
 
-    out_file = fopen(out_path, "wb");
-    if (!out_file) {
-        print_err_usage("Failed to open the output file! Is it in a read-only location?\n");
+
+    //printf("Decrypting...\n");
+    //return extract_package(in_file, out_file);
+    if (extract_package(in_file, abs_path) != 0)
         goto fail;
-    }
 
-    printf("Decrypting...\n");
-    //return decrypt_pkd(in_file, out_file);
-    if (decrypt_pkd(in_file, out_file) != 0)
-        goto fail;
-
-    printf("Done! Output written to %s\n", out_path);
+    printf("Done! Output written to %s\n", abs_path);
     fclose(in_file);
-    fclose(out_file);
     return 0;
 
 fail:
     if (in_file)
         fclose(in_file);
-    if (out_file) {
-        fclose(out_file);
-        remove(out_path);
-    }
     return -1;
 }
