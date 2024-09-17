@@ -14,6 +14,13 @@
 #include "pkd_keys.h"
 #include "reader.h"
 
+#define MINIZ_NO_STDIO
+#define MINIZ_NO_TIME
+#define MINIZ_NO_ARCHIVE_APIS
+#define MINIZ_NO_ARCHIVE_WRITING_APIS
+
+#include "miniz/miniz.h"
+
 
 #if defined(WIN32) || defined(_WIN32) || defined(_WIN64)
     #define HELP_USAGE_IN "X:\\path\\to\\pack.pkd"
