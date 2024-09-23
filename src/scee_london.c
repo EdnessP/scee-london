@@ -228,7 +228,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
         name_hash = read_32be(hdr_c, hdr_offs); hdr_offs += 4;
         name_size = read_str(hdr_c, hdr_offs, file_name); hdr_offs += name_size;
         //printf("%s = 0x%08X, jamcrc = 0x%08X\n", file_name, name_hash, crc32_jamcrc(file_name, name_size));
-        if (name_size < 2 || get_jamcrc(file_name, name_size) != name_hash) {
+        if (name_size < 2 || get_jamcrc_hash(file_name, name_size) != name_hash) {
             printf("Failed to read PACKAGE file name!\n");
             goto fail;
         }
@@ -284,7 +284,8 @@ static int extract_package(FILE *in_file, const char *out_path) {
             if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv++, target_key)) goto fail;
             tmp_i[i] = pkd.xor;
 
-            if (iv == end_chunk) {
+            printf("1 iv=%d, end_chunk=%d, i=%d\n", iv, end_chunk, i);
+            if (iv == end_chunk && end_read) {
                 if (read_chunk(in_file, end_read, encrypted, iv, target_key)) goto fail;
                 tmp_i[++i] = pkd.xor;
                 break;
@@ -320,6 +321,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
             start_skip += d_start_offs;
             file_size -= d_start_offs;
         }
+
 
         if (iv == end_chunk) {
             if (write_chunk(out_file, &tmp_c[start_skip], file_size, compressed, &mz, mz_buf)) goto fail;

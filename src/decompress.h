@@ -22,7 +22,7 @@
 // PACKAGEs use CRC-32/JAMCRC for filename hashes, which just means the final output isn't NORed
 // this is probably slower since mz_crc32 already returns it NORed per standard CRC-32, but meh.
 // Update: nope, it seems like compilers just inline this whole thing and omit the last NOR, lol
-#define get_jamcrc(buf, buf_len) ~(uint32_t)mz_crc32(MZ_CRC32_INIT, buf, buf_len - 1)
+#define get_jamcrc_hash(buf, buf_len) ~(uint32_t)mz_crc32(MZ_CRC32_INIT, buf, buf_len - 1)
 
 // snake_case miniz func defs because muh ocd /s
 #define mz_inflate_init mz_inflateInit
