@@ -2,7 +2,6 @@ SCEE London Studios PACKAGE extractor
           Written by Edness          
 
 
-
 This is a tool that extracts London Studio PACKAGE files (.PKF, .PKD, .THEMES)
 used in various PS3 titles of theirs (SingStar, DanceStar, EyePet, etc.)
 It supports all of its variants - plain, compressed, encrypted, 32/64-bit.
@@ -12,10 +11,8 @@ this is not handled by my tool.  You must decrypt those beforehand with other
 already existing tools.
 
 
-
 == Usage (Simple, Windows only) ==
 Drag and drop the PACKAGE file onto the .EXE file.
-
 
 
 == Usage (Proper, Windows/Linux) ==
@@ -23,11 +20,9 @@ Provide a path to a PACKAGE file, and optionally also a path to a chosen output
 directory through a terminal or command line interface.
 
 
-
 == Support ==
 While completely optional, you can support me here if you wish:
 https://ko-fi.com/edness
-
 
 
 == MiniZ License ==
