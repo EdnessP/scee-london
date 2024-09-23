@@ -284,7 +284,6 @@ static int extract_package(FILE *in_file, const char *out_path) {
             if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv++, target_key)) goto fail;
             tmp_i[i] = pkd.xor;
 
-            printf("1 iv=%d, end_chunk=%d, i=%d\n", iv, end_chunk, i);
             if (iv == end_chunk && end_read) {
                 if (read_chunk(in_file, end_read, encrypted, iv, target_key)) goto fail;
                 tmp_i[++i] = pkd.xor;
