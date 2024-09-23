@@ -1,9 +1,10 @@
 // SCEE London Studios PS3 PACKAGE tool
 #define AUTHOR "Edness"
-#define VERSION "v1.1"
-#define BUILDDATE "2024-07-13 - 2024-09-17"
+#define VERSION "v1.2"
+#define BUILDDATE "2024-07-13 - 2024-09-23"
 
 #define _FILE_OFFSET_BITS 64
+#define _LARGEFILE64_SOURCE 1
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <stdio.h>
@@ -11,24 +12,25 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "pkd_keys.h"
+#include "decompress.h"
+#include "decrypt.h"
 #include "reader.h"
 
-#define MINIZ_NO_STDIO
-#define MINIZ_NO_TIME
-#define MINIZ_NO_ARCHIVE_APIS
-#define MINIZ_NO_ARCHIVE_WRITING_APIS
+#define ID_PACKAGE 0x204547414B434150
+#define ID_ZLIB 0x42494C5A
+#define ID_ERDA 0x41445245
 
-#include "miniz/miniz.h"
+#define HEADER_SIZE 0x18
 
 
 #if defined(WIN32) || defined(_WIN32) || defined(_WIN64)
     #define HELP_USAGE_IN "X:\\path\\to\\pack.pkd"
     #define HELP_USAGE_OUT "X:\\path\\to\\out_dir"
     #define PATH_LEN 260
-    #define PATH_SEP "\\/"
+    #define PATH_SEP "\\"
     #include <windows.h>
 
+    #define is_path_sep(c) c == '\\' || c == '/'
     #define create_dir(path) CreateDirectoryA(path, NULL)
     #define get_abspath(path, out) GetFullPathNameA(path, PATH_LEN, out, NULL)
 
@@ -41,7 +43,8 @@
     #define PATH_SEP "/"
     #include <sys/stat.h>
 
-    #define create_dir(path) mkdir(path, 0644)
+    #define is_path_sep(c) c == '/'
+    #define create_dir(path) mkdir(path, 0755)
     #define get_abspath(path, out) realpath(path, out) // i wish this was better
 
     #define IS_UNIX
@@ -49,79 +52,34 @@
 #endif
 
 
-static FILE *open_mkdir(const char *base_path, char *file_path) {
+static FILE *open_file(const char *base_path, char *file_path) {
     char out_path[PATH_LEN];
     //char *dir = &out_path;
-    int i = 0, j = 0;
+    int i = 0;
 
 
 #ifdef IS_UNIX
-    while (file_path[j]) {
-        if (file_path[j] == '\\')
-            file_path[j] = '/';
-        j++;
+    // PACKAGE files normally use backslashes
+    while (file_path[i]) {
+        if (file_path[i] == '\\')
+            file_path[i] = PATH_SEP[0];
+        i++;
     }
+    i = 0;
 #endif
-    snprintf(out_path, PATH_LEN, "%s/%s", base_path, file_path);
+    snprintf(out_path, PATH_LEN, "%s" PATH_SEP "%s", base_path, file_path);
 
-    // strtok also handles skipping doubles
-    /*
-    printf("%s\n", out_path);
-    dirs = strtok(out_path, PATH_SEP);
-    while (dirs) {
-        printf("%s\n", dirs);
-        dirs = strtok(NULL, PATH_SEP);
-    }
-    */
+    // ignoring warnings given by create_dir(); fopen()
+    // will fail regardless if any serious issues arise
     while (out_path[i]) {
-        j = 0; // variable amount of valid separators
-        while (PATH_SEP[j]) {
-            if (out_path[i] == PATH_SEP[j]) {
-                out_path[i] = '\x00';
-                create_dir(out_path);
-                out_path[i] = PATH_SEP[0];
-                break;
-            }
-            j++;
+        if (is_path_sep(out_path[i])) {
+            out_path[i] = '\x00';
+            create_dir(out_path);
+            out_path[i] = PATH_SEP[0];
         }
         i++;
     }
-
     return fopen(out_path, "wb");
-}
-
-
-union {
-    uint64_t xor;
-    uint8_t buf[8];
-} pkd = {0};
-
-
-static uint64_t get_xtea_xor_key(uint32_t v1, const uint32_t key[4]) {
-    uint32_t delta = 0x9E3779B9;
-    uint32_t v0 = 0x12345678; // iv[0] const
-    uint32_t sum = 0;
-
-    for (int i = 0; i < 8; i++) {
-        v0 += (((v1 << 4) ^ (v1 >> 5)) + v1) ^ (sum + key[sum & 3]);
-        sum += delta;
-        v1 += (((v0 << 4) ^ (v0 >> 5)) + v0) ^ (sum + key[(sum >> 11) & 3]);
-    }
-
-    return (uint64_t)v1 << 32 | v0;
-}
-
-
-static inline char read_chunk(FILE *in_file, const uint8_t read, const int8_t encrypted, const uint32_t iv, const uint32_t key) {
-
-    if (!fread(pkd.buf, read, 1, in_file)) {
-        printf("Failed to read PACKAGE file data!\n");
-        return -1;
-    }
-    if (encrypted)
-        pkd.xor ^= get_xtea_xor_key(iv, keys[key]);
-
-    return 0;
 }
 
 
@@ -133,6 +91,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
 
     uint32_t iv = 0x00000000;
 
+    char compressed = 0;
     char encrypted = 1;
     int target_key = -1;
     //uint32_t key[4] = keys[num_keys - 1];
@@ -141,11 +100,13 @@ static int extract_package(FILE *in_file, const char *out_path) {
     uint8_t *hdr_c = NULL;
     uint64_t *hdr_i = NULL;
 
+    uint8_t *mz_buf = NULL;
+
     FILE *out_file = NULL;
 
 
     //strncpy(pkd.buf, "PACKAGE ", sizeof(pkd.buf));
-    target_hdr = 0x204547414B434150; // pkd.xor;
+    target_hdr = ID_PACKAGE; // pkd.xor;
 
 
     // find the correct key
@@ -163,49 +124,25 @@ static int extract_package(FILE *in_file, const char *out_path) {
         for (int i = 0; i < num_keys; i++) {
             if ((get_xtea_xor_key(iv, keys[i])) == target_hdr) {
                 target_key = i;
+                break;
             }
         }
         if (target_key == -1) {
-            printf("Failed to determine PKD key!\n");
+            printf("Failed to determine PACKAGE encryption key!\n");
             goto fail;
         }
     }
 
-
-    // decrypt pkd to pkf
-    //_fseeki64(in_file, 0x0, SEEK_END);
-    //size = _ftelli64(in_file);
     fseek(in_file, 0x0, SEEK_SET);
-
-
-    /*
-    uint8_t remainder = size & 0x7;
-
-    while (fread(pkd.buf, sizeof(pkd.buf), 1, in_file)) {
-        pkd.xor ^= get_xtea_xor_key(iv++, target_key);
-        fwrite(pkd.buf, sizeof(pkd.buf), 1, out_file);
-    }
-    pkd.xor ^= get_xtea_xor_key(iv, target_key);
-    fwrite(pkd.buf, remainder, 1, out_file);
-    return 0;
-    */
-
-
-    //char header[0x18];
-    //union {
-    //    uint64_t xor[3];
-    //    uint8_t buf[0x18];
-    //} hdr = {0};
-    //if (!fread(hdr.buf, sizeof(hdr.buf), 1, in_file)) {
 
 
     /******************/
     /* INITIALISATION */
     /******************/
-    hdr_c = (uint8_t *)malloc(0x18);
+    hdr_c = (uint8_t *)malloc(HEADER_SIZE);
     hdr_i = (uint64_t *)hdr_c;
 
-    if (hdr_c == NULL) {
+    if (!hdr_c) {
         printf("Failed to allocate memory!\n");
         goto fail;
     }
@@ -241,7 +178,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
     hdr_c = (uint8_t *)realloc(hdr_c, hdr_align);
     hdr_i = (uint64_t *)hdr_c;
 
-    if (hdr_c == NULL) {
+    if (!hdr_c) {
         printf("Failed to allocate memory!\n");
         goto fail;
     }
@@ -261,10 +198,20 @@ static int extract_package(FILE *in_file, const char *out_path) {
     /**************/
     /* EXTRACTION */
     /**************/
-    char file_name[256];
+    char file_name[NAME_LEN];
+    uint8_t tmp_c[HEADER_SIZE] = {0};
+    uint64_t *tmp_i = (uint64_t *)tmp_c;
+    mz_stream mz = {0};
+
+    mz_buf = (uint8_t *)malloc(MAX_DEC_SIZE);
+    if (!mz_buf) {
+        printf("Failed to allocate memory!\n");
+        goto fail;
+    }
+
     while (hdr_offs < hdr_size) {
+        int32_t name_size;
         uint32_t name_hash;
-        //int32_t name_size;
         uint64_t file_offs, file_size;
         //uint64_t start_align, end_align;
 
@@ -272,20 +219,29 @@ static int extract_package(FILE *in_file, const char *out_path) {
         uint64_t start_offs, end_offs;
         uint8_t start_skip, start_read, end_read;
 
+        uint32_t file_hdr;
+        uint32_t d_file_size;
+        char is_zlib, is_erda;
+
+        compressed = 0;
 
         name_hash = read_32be(hdr_c, hdr_offs); hdr_offs += 4;
-        // strncpy or something, return strlen, also check for -1?
-        hdr_offs += read_str(hdr_c, hdr_offs, file_name);
+        name_size = read_str(hdr_c, hdr_offs, file_name); hdr_offs += name_size;
+        //printf("%s = 0x%08X, jamcrc = 0x%08X\n", file_name, name_hash, crc32_jamcrc(file_name, name_size));
+        if (name_size < 2 || get_jamcrc(file_name, name_size) != name_hash) {
+            printf("Failed to read PACKAGE file name!\n");
+            goto fail;
+        }
 
-        // maybe make the reads advance the offset with &hdr_offs
+        // maybe make the reads auto-advance the offset with &hdr_offs
         file_offs = read_be(hdr_c, hdr_offs, size); hdr_offs += size;
         file_size = read_be(hdr_c, hdr_offs, size); hdr_offs += size;
 
-        //hdr_offs += 4 + size * 2 + str_len;
-        //printf("Read 0x%08X bytes from 0x%08X that hashes to 0x%08X for %s\n", file_size, file_offs, name_hash, file_name);
+        //hdr_offs += 4 + size * 2 + name_size;
+        //printf("Read 0x%08X bytes from 0x%08X for %s that hashes to 0x%08X\n", file_size, file_offs, file_name, name_hash);
         printf("Extracting %s\n", file_name);
 
-        out_file = open_mkdir(out_path, file_name);
+        out_file = open_file(out_path, file_name);
         if (!out_file) {
             printf("Failed to open the output file! Is it in a read-only location?\n");
             goto fail;
@@ -314,45 +270,110 @@ static int extract_package(FILE *in_file, const char *out_path) {
             continue;
         }
 
-        // file is small enough to fit in a chunk
+        // file is small enough to fit in a chunk (can't be ZLIB/ERDA)
+        // smallest possible size w/ header is 0x14 for ZLIB and 0x10 for ERDA
         if (file_size <= start_read) {
             if (read_chunk(in_file, start_skip + file_size, encrypted, iv, target_key)) goto fail;
-            fwrite(&pkd.buf[start_skip], file_size, 1, out_file);
+            if (write_chunk(out_file, &pkd.buf[start_skip], file_size, compressed, &mz, mz_buf)) goto fail;
+            fclose(out_file);
+            continue;
+        }
+
+
+        for (int i = 0; i < 3; i++) {
+            if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv++, target_key)) goto fail;
+            tmp_i[i] = pkd.xor;
+
+            if (iv == end_chunk) {
+                if (read_chunk(in_file, end_read, encrypted, iv, target_key)) goto fail;
+                tmp_i[++i] = pkd.xor;
+                break;
+            }
+        }
+
+        //file_hdr = read_32be(tmp_c, start_skip);
+        //if (file_hdr == 'ZLIB' || file_hdr == 'ERDA') { // -Wmultichar warning
+        file_hdr = read_32le(tmp_c, start_skip);
+        if ((is_zlib = file_hdr == ID_ZLIB) || (is_erda = file_hdr == ID_ERDA)) {
+            uint32_t d_start_offs;
+
+            if (mz_inflate_init(&mz)) {
+                printf("Failed to initialise decompressor!\n");
+                goto fail;
+            }
+            mz.next_out = mz_buf;
+            mz.avail_out = MAX_DEC_SIZE;
+
+            compressed = 1;
+
+            if (read_32be(tmp_c, start_skip + 0x4) != 0x01) {
+                printf("Invalid compression header configuration!\n");
+                goto fail;
+            }
+
+            d_start_offs = 0x8;
+            if (is_zlib) { // size not stored for ERDA
+                d_file_size = read_32be(tmp_c, start_skip + 0x8);
+                d_start_offs = 0xC;
+            }
+
+            start_skip += d_start_offs;
+            file_size -= d_start_offs;
+        }
+
+        if (iv == end_chunk) {
+            if (write_chunk(out_file, &tmp_c[start_skip], file_size, compressed, &mz, mz_buf)) goto fail;
+            if (compressed) {
+                if (is_zlib && d_file_size != mz.total_out) {
+                    printf("Failed to decompress PACKAGE file data!\n");
+                    goto fail;
+                }
+                mz_inflate_end(&mz);
+            }
             fclose(out_file);
             continue;
         }
 
         // unaligned start chunk
-        if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv++, target_key)) goto fail;
-        fwrite(&pkd.buf[start_skip], start_read, 1, out_file);
-
-        // if file_size > 8, read both and check if it starts with "ZLIB" or "ERDA"
-        //uint32_t zlib = 'ZLIB'; // -Wmultichar warning, whatever
+        if (write_chunk(out_file, &tmp_c[start_skip], HEADER_SIZE - start_skip, compressed, &mz, mz_buf)) goto fail;
+        //if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv++, target_key)) goto fail;
+        //fwrite(&pkd.buf[start_skip], start_read, 1, out_file);
 
         // aligned main chunks
         for (; iv < end_chunk; iv++) {
             if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv, target_key)) goto fail;
-            fwrite(pkd.buf, sizeof(pkd.buf), 1, out_file);
+            if (write_chunk(out_file, pkd.buf, sizeof(pkd.buf), compressed, &mz, mz_buf)) goto fail;
         }
 
         // unaligned end chunk
         // using sizeof(pkd.buf) may cause an EOF error on the final file
         if (end_read) {
             if (read_chunk(in_file, end_read, encrypted, iv, target_key)) goto fail;
-            fwrite(pkd.buf, end_read, 1, out_file);
+            if (write_chunk(out_file, pkd.buf, end_read, compressed, &mz, mz_buf)) goto fail;
         }
 
+        if (compressed) {
+            if (is_zlib && d_file_size != mz.total_out) {
+                printf("Failed to decompress PACKAGE file data!\n");
+                goto fail;
+            }
+            mz_inflate_end(&mz);
+        }
         fclose(out_file);
     }
 
 
     free(hdr_c);
+    free(mz_buf);
     return 0;
 
 fail:
     if (out_file)
         fclose(out_file);
+    if (compressed)
+        mz_inflate_end(&mz);
     free(hdr_c);
+    free(mz_buf);
     return -1;
 }
 
@@ -377,6 +398,7 @@ int main(int argc, char *argv[]) {
         "Written by " AUTHOR "   " VERSION "\n"
         BUILDDATE "\n\n"
     );
+
 
     if (argc < 2) {
         print_err_usage("Not enough arguments!\n");
