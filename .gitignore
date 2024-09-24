@@ -1,4 +1,6 @@
 .vs
+out
+tmp
 *.out
 *.elf
 *.exe

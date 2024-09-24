@@ -1,9 +1,13 @@
-// Written by Edness   2024-07-29 - 2024-09-23
+// Written by Edness   2024-07-29 - 2024-09-24
 #pragma once
 #include <stdint.h>
 
 #define NAME_LEN 0x100
 
+
+//////////////////
+// FILE READERS //
+//////////////////
 
 union {
     uint64_t xor;
@@ -11,13 +15,9 @@ union {
 } pkd = {0};
 
 
-/****************/
-/* FILE READERS */
-/****************/
+static inline char read_chunk(FILE *file, const uint8_t size, const int8_t encrypted, const uint32_t iv, const uint32_t key) {
 
-static inline char read_chunk(FILE *in_file, const uint8_t read, const int8_t encrypted, const uint32_t iv, const uint32_t key) {
-
-    if (!fread(pkd.buf, read, 1, in_file)) {
+    if (!fread(pkd.buf, size, 1, file)) {
         printf("Failed to read PACKAGE file data!\n");
         return -1;
     }
@@ -28,26 +28,26 @@ static inline char read_chunk(FILE *in_file, const uint8_t read, const int8_t en
 }
 
 
-static inline char write_chunk(FILE *out_file, uint8_t *buf, uint32_t buf_size, const int8_t compressed, mz_streamp mz, uint8_t *mz_buf) {
+static inline char write_chunk(FILE *file, uint8_t *buf, uint32_t size, const int8_t compressed, mz_streamp mz) {
 
     if (compressed) {
-        // this bit is kinda horrible i think, pending rewrite maybe
         mz->next_in = buf;
-        mz->avail_in = buf_size;
+        mz->avail_in = size;
         // the zlib streams have intentionally corrupt footers
         // by SCEE but those shouldn't raise these errors here
-        if (mz_inflate(mz, 0) < 0) {
+        if (mz_inflate(mz, MZ_NO_FLUSH) < MZ_OK) {
             printf("Failed to decompress PACKAGE file data!\n");
             return -1;
         }
         if (mz->avail_out == MAX_DEC_SIZE)
             return 0; // nothing to write
-        buf = mz_buf;
-        buf_size = MAX_DEC_SIZE - mz->avail_out;
-        mz->next_out = mz_buf;
+        size = MAX_DEC_SIZE - mz->avail_out;
+        // reset to the base of malloc'd block
         mz->avail_out = MAX_DEC_SIZE;
+        mz->next_out -= size;
+        buf = mz->next_out;
     }
-    if (!fwrite(buf, buf_size, 1, out_file)) {
+    if (!fwrite(buf, size, 1, file)) {
         printf("Failed to write output file data!\n");
         return -1;
     }
@@ -56,9 +56,9 @@ static inline char write_chunk(FILE *out_file, uint8_t *buf, uint32_t buf_size, 
 }
 
 
-/******************/
-/* BUFFER READERS */
-/******************/
+////////////////////
+// BUFFER READERS //
+////////////////////
 
 // null-terminated string
 static int32_t read_str(const uint8_t *buf, uint32_t offs, char *dst) {
@@ -73,7 +73,7 @@ static int32_t read_str(const uint8_t *buf, uint32_t offs, char *dst) {
 }
 
 
-// 32-bit little endian integer
+// 32-bit little endian integer (unaligned reads lol)
 static int32_t read_32le(const uint8_t *buf, const uint32_t offs) {
     return *(uint32_t *)&buf[offs];
 }

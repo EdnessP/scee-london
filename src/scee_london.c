@@ -1,7 +1,7 @@
 // SCEE London Studios PS3 PACKAGE tool
 #define AUTHOR "Edness"
-#define VERSION "v1.2"
-#define BUILDDATE "2024-07-13 - 2024-09-23"
+#define VERSION "v1.2.1"
+#define BUILDDATE "2024-07-13 - 2024-09-24"
 
 #define _FILE_OFFSET_BITS 64
 #define _LARGEFILE64_SOURCE 1
@@ -59,7 +59,7 @@ static FILE *open_file(const char *base_path, char *file_path) {
 
 
 #ifdef IS_UNIX
-    // PACKAGE files normally use backslashes
+    // PACKAGE filenames normally use backslashes
     while (file_path[i]) {
         if (file_path[i] == '\\')
             file_path[i] = PATH_SEP[0];
@@ -99,7 +99,6 @@ static int extract_package(FILE *in_file, const char *out_path) {
 
     uint8_t *hdr_c = NULL;
     uint64_t *hdr_i = NULL;
-
     uint8_t *mz_buf = NULL;
 
     FILE *out_file = NULL;
@@ -136,9 +135,9 @@ static int extract_package(FILE *in_file, const char *out_path) {
     fseek(in_file, 0x0, SEEK_SET);
 
 
-    /******************/
-    /* INITIALISATION */
-    /******************/
+    ////////////////////
+    // INITIALISATION //
+    ////////////////////
     hdr_c = (uint8_t *)malloc(HEADER_SIZE);
     hdr_i = (uint64_t *)hdr_c;
 
@@ -195,9 +194,9 @@ static int extract_package(FILE *in_file, const char *out_path) {
     }
 
 
-    /**************/
-    /* EXTRACTION */
-    /**************/
+    ////////////////
+    // EXTRACTION //
+    ////////////////
     char file_name[NAME_LEN];
     uint8_t tmp_c[HEADER_SIZE] = {0};
     uint64_t *tmp_i = (uint64_t *)tmp_c;
@@ -221,7 +220,6 @@ static int extract_package(FILE *in_file, const char *out_path) {
 
         uint32_t file_hdr;
         uint32_t d_file_size;
-        char is_zlib, is_erda;
 
         compressed = 0;
 
@@ -265,18 +263,14 @@ static int extract_package(FILE *in_file, const char *out_path) {
         fsetpos(in_file, (fpos_t *)&start_offs);
 
         // file is empty
-        if (!file_size) {
-            fclose(out_file);
-            continue;
-        }
+        if (!file_size) goto continue_loop;
 
         // file is small enough to fit in a chunk (can't be ZLIB/ERDA)
-        // smallest possible size w/ header is 0x14 for ZLIB and 0x10 for ERDA
+        // smallest possible size w/ header and an empty zlib stream is 0x14 for ZLIB and 0x10 for ERDA
         if (file_size <= start_read) {
             if (read_chunk(in_file, start_skip + file_size, encrypted, iv, target_key)) goto fail;
-            if (write_chunk(out_file, &pkd.buf[start_skip], file_size, compressed, &mz, mz_buf)) goto fail;
-            fclose(out_file);
-            continue;
+            if (write_chunk(out_file, &pkd.buf[start_skip], file_size, compressed, &mz)) goto fail;
+            goto continue_loop;
         }
 
 
@@ -294,7 +288,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
         //file_hdr = read_32be(tmp_c, start_skip);
         //if (file_hdr == 'ZLIB' || file_hdr == 'ERDA') { // -Wmultichar warning
         file_hdr = read_32le(tmp_c, start_skip);
-        if ((is_zlib = file_hdr == ID_ZLIB) || (is_erda = file_hdr == ID_ERDA)) {
+        if (file_hdr == ID_ZLIB || file_hdr == ID_ERDA) {
             uint32_t d_start_offs;
 
             if (mz_inflate_init(&mz)) {
@@ -306,55 +300,49 @@ static int extract_package(FILE *in_file, const char *out_path) {
 
             compressed = 1;
 
-            if (read_32be(tmp_c, start_skip + 0x4) != 0x01) {
+            if (read_32be(tmp_c, start_skip + 0x4) != 1) {
                 printf("Invalid compression header configuration!\n");
                 goto fail;
             }
 
             d_start_offs = 0x8;
-            if (is_zlib) { // size not stored for ERDA
+            if (file_hdr == ID_ZLIB) { // size not stored for ERDA
                 d_file_size = read_32be(tmp_c, start_skip + 0x8);
                 d_start_offs = 0xC;
             }
-
+            // only process the zlib stream
             start_skip += d_start_offs;
             file_size -= d_start_offs;
         }
 
 
         if (iv == end_chunk) {
-            if (write_chunk(out_file, &tmp_c[start_skip], file_size, compressed, &mz, mz_buf)) goto fail;
-            if (compressed) {
-                if (is_zlib && d_file_size != mz.total_out) {
-                    printf("Failed to decompress PACKAGE file data!\n");
-                    goto fail;
-                }
-                mz_inflate_end(&mz);
-            }
-            fclose(out_file);
-            continue;
+            if (write_chunk(out_file, &tmp_c[start_skip], file_size, compressed, &mz)) goto fail;
+            goto continue_loop;
         }
 
         // unaligned start chunk
-        if (write_chunk(out_file, &tmp_c[start_skip], HEADER_SIZE - start_skip, compressed, &mz, mz_buf)) goto fail;
+        if (write_chunk(out_file, &tmp_c[start_skip], HEADER_SIZE - start_skip, compressed, &mz)) goto fail;
         //if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv++, target_key)) goto fail;
         //fwrite(&pkd.buf[start_skip], start_read, 1, out_file);
 
         // aligned main chunks
         for (; iv < end_chunk; iv++) {
             if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv, target_key)) goto fail;
-            if (write_chunk(out_file, pkd.buf, sizeof(pkd.buf), compressed, &mz, mz_buf)) goto fail;
+            if (write_chunk(out_file, pkd.buf, sizeof(pkd.buf), compressed, &mz)) goto fail;
         }
 
         // unaligned end chunk
         // using sizeof(pkd.buf) may cause an EOF error on the final file
         if (end_read) {
             if (read_chunk(in_file, end_read, encrypted, iv, target_key)) goto fail;
-            if (write_chunk(out_file, pkd.buf, end_read, compressed, &mz, mz_buf)) goto fail;
+            if (write_chunk(out_file, pkd.buf, end_read, compressed, &mz)) goto fail;
         }
 
+    continue_loop:
+        // gotos bad blah blah, i don't wanna write this for each continue;
         if (compressed) {
-            if (is_zlib && d_file_size != mz.total_out) {
+            if (file_hdr == ID_ZLIB && d_file_size != mz.total_out) {
                 printf("Failed to decompress PACKAGE file data!\n");
                 goto fail;
             }
@@ -430,7 +418,7 @@ int main(int argc, char *argv[]) {
 
     //printf("Decrypting...\n");
     //return extract_package(in_file, out_file);
-    if (extract_package(in_file, abs_path) != 0)
+    if (extract_package(in_file, abs_path))
         goto fail;
 
     printf("Done! Output written to %s\n", abs_path);
