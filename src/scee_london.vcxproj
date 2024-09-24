@@ -140,6 +140,10 @@
     <ClInclude Include="decrypt.h" />
     <ClInclude Include="reader.h" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="miniz\miniz.c" />
+    <ClInclude Include="miniz\miniz.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
