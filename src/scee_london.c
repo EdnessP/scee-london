@@ -291,6 +291,11 @@ static int extract_package(FILE *in_file, const char *out_path) {
         if (file_hdr == ID_ZLIB || file_hdr == ID_ERDA) {
             uint32_t d_start_offs;
 
+            if (read_32be(tmp_c, start_skip + 0x4) != 1) {
+                printf("Invalid compression header configuration!\n");
+                goto fail;
+            }
+
             if (mz_inflate_init(&mz)) {
                 printf("Failed to initialise decompressor!\n");
                 goto fail;
@@ -300,13 +305,8 @@ static int extract_package(FILE *in_file, const char *out_path) {
 
             compressed = 1;
 
-            if (read_32be(tmp_c, start_skip + 0x4) != 1) {
-                printf("Invalid compression header configuration!\n");
-                goto fail;
-            }
-
             d_start_offs = 0x8;
-            if (file_hdr == ID_ZLIB) { // size not stored for ERDA
+            if (file_hdr == ID_ZLIB) { // ERDA doesn't store size
                 d_file_size = read_32be(tmp_c, start_skip + 0x8);
                 d_start_offs = 0xC;
             }
@@ -416,8 +416,6 @@ int main(int argc, char *argv[]) {
     get_abspath(out_path, abs_path);
 
 
-    //printf("Decrypting...\n");
-    //return extract_package(in_file, out_file);
     if (extract_package(in_file, abs_path))
         goto fail;
 

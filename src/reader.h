@@ -28,7 +28,7 @@ static inline char read_chunk(FILE *file, const uint8_t size, const int8_t encry
 }
 
 
-static inline char write_chunk(FILE *file, uint8_t *buf, uint32_t size, const int8_t compressed, mz_streamp mz) {
+static inline char write_chunk(FILE *file, uint8_t *buf, uint32_t size, const int8_t compressed, mz_stream *mz) {
 
     if (compressed) {
         mz->next_in = buf;
@@ -37,6 +37,10 @@ static inline char write_chunk(FILE *file, uint8_t *buf, uint32_t size, const in
         // by SCEE but those shouldn't raise these errors here
         if (mz_inflate(mz, MZ_NO_FLUSH) < MZ_OK) {
             printf("Failed to decompress PACKAGE file data!\n");
+            return -1;
+        }
+        if (!mz->avail_out) { // is this even possible?
+            printf("Out of decompressor buffer memory!\n");
             return -1;
         }
         if (mz->avail_out == MAX_DEC_SIZE)
