@@ -19,26 +19,26 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="scee_london.c">
+    <ClCompile Include="..\src\scee_london.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="reader.h">
+    <ClInclude Include="..\src\reader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="decrypt.h">
+    <ClInclude Include="..\src\decrypt.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="decompress.h">
+    <ClInclude Include="..\src\decompress.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="miniz\miniz.c">
+    <ClInclude Include="..\src\miniz\miniz.c">
       <Filter>Libraries</Filter>
     </ClInclude>
-    <ClInclude Include="miniz\miniz.h">
+    <ClInclude Include="..\src\miniz\miniz.h">
       <Filter>Libraries</Filter>
     </ClInclude>
   </ItemGroup>
