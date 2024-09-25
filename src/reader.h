@@ -67,7 +67,7 @@ static inline char write_chunk(FILE *file, uint8_t *buf, uint32_t size, const in
 ////////////////////
 
 // null-terminated string
-static int32_t read_str(const uint8_t *buf, uint32_t offs, char *dst) {
+static inline int32_t read_str(const uint8_t *buf, uint32_t offs, char *dst) {
     //do {} while (buf[offs]);
     for (int i = 0; i < NAME_LEN; i++) { // should be always ASCII i think
         if ((buf[offs] > 0x00 && buf[offs] < 0x20) || buf[offs] > 0x7E) return -1;
@@ -80,13 +80,13 @@ static int32_t read_str(const uint8_t *buf, uint32_t offs, char *dst) {
 
 
 // 32-bit little endian integer (unaligned reads lol)
-static int32_t read_32le(const uint8_t *buf, const uint32_t offs) {
+static inline int32_t read_32le(const uint8_t *buf, const uint32_t offs) {
     return *(uint32_t *)&buf[offs];
 }
 
 
 // 32-bit big endian integer
-static int32_t read_32be(const uint8_t *buf, uint32_t offs) {
+static inline int32_t read_32be(const uint8_t *buf, uint32_t offs) {
     uint32_t val = 0;
 
     for (int i = 0; i < 4; i++) {
@@ -99,13 +99,13 @@ static int32_t read_32be(const uint8_t *buf, uint32_t offs) {
 
 
 // 16-bit big endian integer
-static int16_t read_16be(const uint8_t *buf, const uint32_t offs) {
+static inline int16_t read_16be(const uint8_t *buf, const uint32_t offs) {
     return buf[offs] << 8 | buf[offs + 1];
 }
 
 
-// variable big endian integer
-static int64_t read_be(const uint8_t *buf, uint32_t offs, const uint8_t size) {
+// variable big endian integer (should probs just have it call 32/64-bit reads directly)
+static inline int64_t read_be(const uint8_t *buf, uint32_t offs, const uint8_t size) {
     uint64_t val = 0;
 
     for (int i = 0; i < size; i++) {
