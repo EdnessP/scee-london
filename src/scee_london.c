@@ -1,7 +1,7 @@
 // SCEE London Studios PS3 PACKAGE tool
 #define AUTHOR "Edness"
 #define VERSION "v1.2.1"
-#define BUILDDATE "2024-07-13 - 2024-09-24"
+#define BUILDDATE "2024-07-13 - 2024-09-25"
 
 #define _FILE_OFFSET_BITS 64
 #define _LARGEFILE64_SOURCE 1
@@ -11,6 +11,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define print_err(msg) printf("Error: %s", msg) // printf("Error: " msg) also works but...
 
 #include "decompress.h"
 #include "decrypt.h"
@@ -34,7 +36,7 @@
     #define create_dir(path) CreateDirectoryA(path, NULL)
     #define get_abspath(path, out) GetFullPathNameA(path, PATH_LEN, out, NULL)
 
-    #define IS_WINDOWS
+    #define IS_WINDOWS 1
 
 #elif defined(__unix__) || defined(__APPLE__)
     #define HELP_USAGE_IN "/path/to/pack.pkd"
@@ -47,7 +49,7 @@
     #define create_dir(path) mkdir(path, 0755)
     #define get_abspath(path, out) realpath(path, out) // i wish this was better
 
-    #define IS_UNIX
+    #define IS_UNIX 1
 
 #endif
 
@@ -58,7 +60,7 @@ static FILE *open_file(const char *base_path, char *file_path) {
     int i = 0;
 
 
-#ifdef IS_UNIX
+#if IS_UNIX
     // PACKAGE filenames normally use backslashes
     while (file_path[i]) {
         if (file_path[i] == '\\')
@@ -110,7 +112,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
 
     // find the correct key
     if (!fread(pkd.buf, sizeof(pkd.buf), 1, in_file)) {
-        printf("Invalid PACKAGE file!\n");
+        print_err("Invalid PACKAGE file!\n");
         goto fail;
     }
     if (pkd.xor == target_hdr) {
@@ -127,7 +129,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
             }
         }
         if (target_key == -1) {
-            printf("Failed to determine PACKAGE encryption key!\n");
+            print_err("Failed to determine PACKAGE encryption key!\n");
             goto fail;
         }
     }
@@ -142,7 +144,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
     hdr_i = (uint64_t *)hdr_c;
 
     if (!hdr_c) {
-        printf("Failed to allocate memory!\n");
+        print_err("Failed to allocate memory!\n");
         goto fail;
     }
 
@@ -158,7 +160,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
     printf("%016llX\n", read_be(hdr_c, 0xE, 8));
     */
     if (read_32le(hdr_c, 0x8) != 1) {
-        printf("Invalid PACKAGE header configuration!\n");
+        print_err("Invalid PACKAGE header configuration!\n");
         goto fail;
     }
     flags = read_16be(hdr_c, 0xC);
@@ -167,7 +169,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
     hdr_offs = 0xE + size;
     // bits 1 and 2 are always set?  the rest are always zero?
     if (!(flags & 0x2) || !(flags & 0x4) || (flags & ~0x7)) {
-        printf("Invalid PACKAGE header configuration!\n");
+        print_err("Invalid PACKAGE header configuration!\n");
         goto fail;
     }
     hdr_size = read_be(hdr_c, 0xE, size) + hdr_offs;
@@ -178,7 +180,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
     hdr_i = (uint64_t *)hdr_c;
 
     if (!hdr_c) {
-        printf("Failed to allocate memory!\n");
+        print_err("Failed to allocate memory!\n");
         goto fail;
     }
 
@@ -204,7 +206,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
 
     mz_buf = (uint8_t *)malloc(MAX_DEC_SIZE);
     if (!mz_buf) {
-        printf("Failed to allocate memory!\n");
+        print_err("Failed to allocate memory!\n");
         goto fail;
     }
 
@@ -223,11 +225,12 @@ static int extract_package(FILE *in_file, const char *out_path) {
 
         compressed = 0;
 
+
         name_hash = read_32be(hdr_c, hdr_offs); hdr_offs += 4;
         name_size = read_str(hdr_c, hdr_offs, file_name); hdr_offs += name_size;
         //printf("%s = 0x%08X, jamcrc = 0x%08X\n", file_name, name_hash, crc32_jamcrc(file_name, name_size));
         if (name_size < 2 || get_jamcrc_hash(file_name, name_size) != name_hash) {
-            printf("Failed to read PACKAGE file name!\n");
+            print_err("Failed to read PACKAGE file name!\n");
             goto fail;
         }
 
@@ -241,7 +244,11 @@ static int extract_package(FILE *in_file, const char *out_path) {
 
         out_file = open_file(out_path, file_name);
         if (!out_file) {
-            printf("Failed to open the output file! Is it in a read-only location?\n");
+            print_err("Failed to open the output file! Is it in a read-only location?\n");
+#if IS_WINDOWS
+            if (strchr(out_path, '?'))
+                printf("Path may contain unicode characters not supported by the current codepage!\n");
+#endif
             goto fail;
         }
 
@@ -292,12 +299,12 @@ static int extract_package(FILE *in_file, const char *out_path) {
             uint32_t d_start_offs;
 
             if (read_32be(tmp_c, start_skip + 0x4) != 1) {
-                printf("Invalid compression header configuration!\n");
+                print_err("Invalid compression header configuration!\n");
                 goto fail;
             }
 
             if (mz_inflate_init(&mz)) {
-                printf("Failed to initialise decompressor!\n");
+                print_err("Failed to initialise decompressor!\n");
                 goto fail;
             }
             mz.next_out = mz_buf;
@@ -343,7 +350,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
         // gotos bad blah blah, i don't wanna write this for each continue;
         if (compressed) {
             if (file_hdr == ID_ZLIB && d_file_size != mz.total_out) {
-                printf("Failed to decompress PACKAGE file data!\n");
+                print_err("Failed to decompress PACKAGE file data!\n");
                 goto fail;
             }
             mz_inflate_end(&mz);
@@ -370,10 +377,9 @@ fail:
 static void print_err_usage(const char *msg) {
     printf(
         "Usage:    \"" HELP_USAGE_IN "\"\n"
-        "Optional: \"" HELP_USAGE_IN "\" \"" HELP_USAGE_OUT "\"\n"
-
-        "\nError: %s\n", msg
+        "Optional: \"" HELP_USAGE_IN "\" \"" HELP_USAGE_OUT "\"\n\n"
     );
+    print_err(msg);
 }
 
 
@@ -398,7 +404,7 @@ int main(int argc, char *argv[]) {
     in_file = fopen(argv[1], "rb");
     if (!in_file) {
         print_err_usage("Failed to open the input file!\n");
-#ifdef IS_WINDOWS
+#if IS_WINDOWS
         if (strchr(argv[1], '?'))
             printf("Path may contain unicode characters not supported by the current codepage!\n");
 #endif

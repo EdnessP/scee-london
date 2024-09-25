@@ -18,7 +18,7 @@ union {
 static inline char read_chunk(FILE *file, const uint8_t size, const int8_t encrypted, const uint32_t iv, const uint32_t key) {
 
     if (!fread(pkd.buf, size, 1, file)) {
-        printf("Failed to read PACKAGE file data!\n");
+        print_err("Failed to read PACKAGE file data!\n");
         return -1;
     }
     if (encrypted)
@@ -36,11 +36,13 @@ static inline char write_chunk(FILE *file, uint8_t *buf, uint32_t size, const in
         // the zlib streams have intentionally corrupt footers
         // by SCEE but those shouldn't raise these errors here
         if (mz_inflate(mz, MZ_NO_FLUSH) < MZ_OK) {
-            printf("Failed to decompress PACKAGE file data!\n");
+            print_err("Failed to decompress PACKAGE file data!\n");
             return -1;
         }
         if (!mz->avail_out) { // is this even possible?
-            printf("Out of decompressor buffer memory!\n");
+            // mz_inflate will eventually fail at the end when i tested with
+            // a small buffer, so maybe there is a proper way to handle this
+            print_err("Out of decompressor buffer memory!\n");
             return -1;
         }
         if (mz->avail_out == MAX_DEC_SIZE)
@@ -52,7 +54,7 @@ static inline char write_chunk(FILE *file, uint8_t *buf, uint32_t size, const in
         buf = mz->next_out;
     }
     if (!fwrite(buf, size, 1, file)) {
-        printf("Failed to write output file data!\n");
+        print_err("Failed to write output file data!\n");
         return -1;
     }
 
