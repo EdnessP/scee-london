@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-13 - 2024-07-17
+// Written by Edness   2024-07-13 - 2024-08-07
 #pragma once
 #include <stdint.h>
 
@@ -105,13 +105,17 @@ static const uint32_t keys[][4] = {
 
     {0x7755DFA5, 0x68000068, 0x00000017, 0x00000000}, // SingStar Frozen
 
-    {0x00000000, 0x00000000, 0x00000000, 0x00000000}  // Errata.pkd, LegacyPS2Discs.pkd
+    {0x00000000, 0x00000000, 0x00000000, 0x00000000}  // Errata.pkd, LegacyPS2Discs.pkd (rare)
 };
 
 
 static const int num_keys = sizeof(keys) / sizeof(keys[0]);
 
 
+// PACKAGE uses a slightly "custom" implementation of XTEA encryption
+// using the block offset index as the IV with a constant first half,
+// encrypting that with XTEA, and using the result to XOR said block.
+// (v0 technically isn't hardcoded in the games but yk optimizations)
 static uint64_t get_xtea_xor_key(uint32_t v1, const uint32_t key[4]) {
     uint32_t delta = 0x9E3779B9;
     uint32_t v0 = 0x12345678; // iv[0] const

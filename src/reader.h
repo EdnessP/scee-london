@@ -69,8 +69,9 @@ static inline char write_chunk(FILE *file, uint8_t *buf, uint32_t size, const in
 // null-terminated string
 static inline int32_t read_str(const uint8_t *buf, uint32_t offs, char *dst) {
     //do {} while (buf[offs]);
-    for (int i = 0; i < NAME_LEN; i++) { // should be always ASCII i think
-        if ((buf[offs] > 0x00 && buf[offs] < 0x20) || buf[offs] > 0x7E) return -1;
+    for (int i = 0; i < NAME_LEN; i++) {
+        if ((buf[offs] > 0x00 && buf[offs] < 0x20) || buf[offs] > 0x7E)
+            return -1; // should always be ASCII i think
         dst[i] = buf[offs];
         if (!buf[offs++]) return ++i;
     }
