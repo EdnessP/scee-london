@@ -19,7 +19,7 @@
 // extreme upper bound - 0x10*0x408, per https://stackoverflow.com/questions/26922482/
 // 0x8*0x408 (0x2040) is most likely safe, a max init 0x10 byte ERDA chunk likely won't give anything.
 // UPDATE: upon further testing, ERDA decompression occasionally goes beyond 0x2040 (max known 0x23C9)
-// appears to be caused by chunks not being aligned, flushing the previous constant byte stream along.
+// seems to be caused by unaligned chunks, flushing the previous constant byte stream along a new one.
 #define MAX_DEC_SIZE 0x4080
 
 // PACKAGEs use CRC-32/JAMCRC for filename hashes, which just means the final output isn't NORed

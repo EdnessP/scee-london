@@ -269,6 +269,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
         // i cba to deal with non-standardized 64-bit seeks
         fsetpos(in_file, (fpos_t *)&start_offs);
 
+
         // file is empty
         if (!file_size) goto continue_loop;
 
@@ -292,6 +293,8 @@ static int extract_package(FILE *in_file, const char *out_path) {
             }
         }
 
+        // this can work around the potential unaligned reads, but meh
+        // some testing showed there is either no or next to no impact
         //file_hdr = read_32be(tmp_c, start_skip);
         //if (file_hdr == 'ZLIB' || file_hdr == 'ERDA') { // -Wmultichar warning
         file_hdr = read_32le(tmp_c, start_skip);
