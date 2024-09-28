@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-29 - 2024-09-25
+// Written by Edness   2024-07-29 - 2024-09-28
 #pragma once
 #include <stdint.h>
 
@@ -31,27 +31,9 @@ static inline char read_chunk(FILE *file, const uint8_t size, const int8_t encry
 static inline char write_chunk(FILE *file, uint8_t *buf, uint32_t size, const int8_t compressed, mz_stream *mz) {
 
     if (compressed) {
-        mz->next_in = buf;
-        mz->avail_in = size;
-        // the zlib streams have intentionally corrupt footers
-        // by SCEE but those shouldn't raise these errors here
-        if (mz_inflate(mz, MZ_NO_FLUSH) < MZ_OK) {
-            print_err("Failed to decompress PACKAGE file data!\n");
+        if (decompress_chunk(mz, &buf, &size))
             return -1;
-        }
-        if (!mz->avail_out) { // is this even possible?
-            // mz_inflate will eventually fail at the end when i tested with
-            // a small buffer, so maybe there is a proper way to handle this
-            print_err("Out of decompressor buffer memory!\n");
-            return -1;
-        }
-        if (mz->avail_out == MAX_DEC_SIZE)
-            return 0; // nothing to write
-        size = MAX_DEC_SIZE - mz->avail_out;
-        // reset to the base of malloc'd block
-        mz->avail_out = MAX_DEC_SIZE;
-        mz->next_out -= size;
-        buf = mz->next_out;
+        if (!size) return 0; // nothing to write
     }
     if (!fwrite(buf, size, 1, file)) {
         print_err("Failed to write output file data!\n");

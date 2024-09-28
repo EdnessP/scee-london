@@ -1,7 +1,7 @@
 // SCEE London Studios PS3 PACKAGE tool
 #define AUTHOR "Edness"
 #define VERSION "v1.2.1"
-#define BUILDDATE "2024-07-13 - 2024-09-25"
+#define BUILDDATE "2024-07-13 - 2024-09-28"
 
 #define _FILE_OFFSET_BITS 64
 #define _LARGEFILE64_SOURCE 1
