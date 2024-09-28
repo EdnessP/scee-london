@@ -69,6 +69,7 @@ static FILE *open_file(const char *base_path, char *file_path) {
     }
     i = 0;
 #endif
+    printf("Extracting %s\n", file_path); // print after separator fixup
     snprintf(out_path, PATH_LEN, "%s" PATH_SEP "%s", base_path, file_path);
 
     // ignoring warnings given by create_dir(); fopen()
@@ -240,7 +241,6 @@ static int extract_package(FILE *in_file, const char *out_path) {
 
         //hdr_offs += 4 + size * 2 + name_size;
         //printf("Read 0x%08X bytes from 0x%08X for %s that hashes to 0x%08X\n", file_size, file_offs, file_name, name_hash);
-        printf("Extracting %s\n", file_name);
 
         out_file = open_file(out_path, file_name);
         if (!out_file) {
