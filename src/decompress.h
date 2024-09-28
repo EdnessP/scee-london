@@ -16,7 +16,7 @@
 #include "miniz/miniz.c"
 
 
-// extreme upper bound - 0x10*0x408, per https://stackoverflow.com/questions/26922482/
+// extreme upper bound - 0x10*0x408, per Mark Adler here https://stackoverflow.com/questions/26922482/
 // 0x8*0x408 (0x2040) is most likely safe, a max init 0x10 byte ERDA chunk likely won't give anything.
 // UPDATE: upon further testing, ERDA decompression occasionally goes beyond 0x2040 (max known 0x23C9)
 // seems to be caused by unaligned chunks, flushing the previous constant byte stream along a new one?
