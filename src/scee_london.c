@@ -48,19 +48,20 @@
     #define is_path_sep(c) c == '/'
     #define create_dir(path) mkdir(path, 0755)
     #define get_abspath(path, out) realpath(path, out) // i wish this was better
+    // realpath apparently doesn't exist on osx, is there some native alternative?
 
-    #define IS_UNIX 1
+    #define IS_POSIX 1
 
 #endif
 
 
 static FILE *open_file(const char *base_path, char *file_path) {
     char out_path[PATH_LEN];
-    //char *dir = &out_path;
+    FILE *out_file;
     int i = 0;
 
 
-#if IS_UNIX
+#if IS_POSIX
     // PACKAGE filenames normally use backslashes
     while (file_path[i]) {
         if (file_path[i] == '\\')
@@ -70,7 +71,10 @@ static FILE *open_file(const char *base_path, char *file_path) {
     i = 0;
 #endif
     printf("Extracting %s\n", file_path); // print after separator fixup
-    snprintf(out_path, PATH_LEN, "%s" PATH_SEP "%s", base_path, file_path);
+    if (snprintf(out_path, PATH_LEN, "%s" PATH_SEP "%s", base_path, file_path) >= PATH_LEN) {
+        print_err("File output path is too long!\n");
+        return NULL;
+    }
 
     // ignoring warnings given by create_dir(); fopen()
     // will fail regardless if any serious issues arise
@@ -82,7 +86,18 @@ static FILE *open_file(const char *base_path, char *file_path) {
         }
         i++;
     }
-    return fopen(out_path, "wb");
+
+    out_file = fopen(out_path, "wb");
+    if (!out_file) {
+        print_err("Failed to open the output file! Is it in a read-only location?\n");
+#if IS_WINDOWS
+        if (strchr(out_path, '?'))
+            printf("Path may contain unicode characters not supported by the current codepage!\n");
+#endif
+        return NULL; // technically not needed since out_file is already NULL
+    }
+
+    return out_file;
 }
 
 
@@ -242,16 +257,6 @@ static int extract_package(FILE *in_file, const char *out_path) {
         //hdr_offs += 4 + size * 2 + name_size;
         //printf("Read 0x%08X bytes from 0x%08X for %s that hashes to 0x%08X\n", file_size, file_offs, file_name, name_hash);
 
-        out_file = open_file(out_path, file_name);
-        if (!out_file) {
-            print_err("Failed to open the output file! Is it in a read-only location?\n");
-#if IS_WINDOWS
-            if (strchr(out_path, '?'))
-                printf("Path may contain unicode characters not supported by the current codepage!\n");
-#endif
-            goto fail;
-        }
-
 
         start_skip = file_offs & 0x7;
         start_offs = file_offs - start_skip;
@@ -268,6 +273,9 @@ static int extract_package(FILE *in_file, const char *out_path) {
 
         // i cba to deal with non-standardized 64-bit seeks
         fsetpos(in_file, (fpos_t *)&start_offs);
+
+        out_file = open_file(out_path, file_name);
+        if (!out_file) goto fail;
 
 
         // file is empty
@@ -400,7 +408,7 @@ int main(int argc, char *argv[]) {
 
     if (argc < 2) {
         print_err_usage("Not enough arguments!\n");
-        return -1;
+        goto fail;
     }
 
     //LPWSTR a = GetCommandLineW(); // cba to deal with this
@@ -435,5 +443,11 @@ int main(int argc, char *argv[]) {
 fail:
     if (in_file)
         fclose(in_file);
+#if IS_WINDOWS
+    // user might've drag-dropped it on the .EXE and thus won't see the error
+    printf("\nPress any key to continue...\n");
+    // the C standard getchar() also doesn't behave quite the same as getch()
+    while (!getch());
+#endif
     return -1;
 }
