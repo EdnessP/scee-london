@@ -20,13 +20,16 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\reader.h">
+    <ClInclude Include="..\src\decompress.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\decrypt.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\decompress.h">
+    <ClInclude Include="..\src\hash.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\reader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

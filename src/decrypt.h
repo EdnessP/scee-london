@@ -1,11 +1,19 @@
-// Written by Edness   2024-07-13 - 2024-08-07
+// Written by Edness   2024-07-13 - 2024-10-06
 #pragma once
 #include <stdint.h>
 
+#define NUM_KEYS sizeof(keys) / sizeof(keys[0])
 
-/* MISSING KEYS:
- *  SingStar (Norway)       // most likely unique keys
- *  SingStar SuomiBileet */ // same as MegaHits/Nova Geracao/Ultimate Party?
+
+// TODO: Info on how the keys are derived
+// A 0x100 byte block is loaded from ...somewhere, I'm not entirely sure where.
+// It's treated as an array of 64 x 32-bit integers, and the array is reversed.
+// That block is then decrypted, and from the result of that, starting with the
+// data at 0xB4 of the decrypted block, the final PKD key is eventually derived
+
+// gcc complains about the const, because I reworked it to pre-calculate the key
+// pointer, but without it the key table is no longer placed in a read-only area
+// And a shout-out goes out to the Redump.org community for making this possible
 static const uint32_t keys[][4] = {
     {0xE2AC48C5, 0x1C511D8E, 0x8158606D, 0x8086ED1D}, // SingStar (Europe) (Pack0.pkd)
     {0xD2229BCB, 0xE9D5207A, 0x88960EEB, 0x7A848797}, // SingStar (Europe) (Pack1.pkd)
@@ -13,8 +21,8 @@ static const uint32_t keys[][4] = {
     {0xB370301E, 0x6AB604B3, 0xA141CE8D, 0xB901D782}, // SingStar (France) (Pack1.pkd)
     {0x5413789E, 0xFD0D1A78, 0x03E298F2, 0x6FA496BD}, // SingStar (Germany) (Pack0.pkd)
     {0x6A738A85, 0x077231A7, 0xDE34B9B2, 0xB1EF5267}, // SingStar (Germany) (Pack1.pkd)
-  //{0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}, // SingStar (Norway) (Pack0.pkd)
-  //{0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}, // SingStar (Norway) (Pack1.pkd)
+    {0x26AE137C, 0x77B72FA7, 0xE17CC61B, 0xEF655BB5}, // SingStar (Norway) (Pack0.pkd)
+    {0x511D8C65, 0x46E18707, 0x2C5429C7, 0xEC547829}, // SingStar (Norway) (Pack1.pkd)
     {0xA2796382, 0x3F1C41CD, 0xE0F313BA, 0x608C428C}, // SingStar (Spain) (Pack0.pkd)
     {0x2345B083, 0xC41236D0, 0xD6FA981C, 0x6283311C}, // SingStar (Spain) (Pack1.pkd)
     {0x281446BC, 0xB01F295D, 0x09C2221E, 0xEE62AA61}, // SingStar (USA) (Pack0.pkd)
@@ -32,6 +40,19 @@ static const uint32_t keys[][4] = {
     {0xD7D1D111, 0x9CF4E35E, 0x078F63E6, 0x8952F1A6}, // SingStar Vol. 2 (Spain) (Pack0.pkd)
     {0x52FBCF90, 0x870127F1, 0x93EB12DA, 0x3DEACB34}, // SingStar Vol. 2 (Spain) (Pack1.pkd)
     {0x16050B5E, 0xD8E1AE59, 0x4D7EBFD9, 0xE0DFD4ED}, // SingStar Vol. 2 (Spain) (Pack2.pkd)
+
+    /* LegacyPS2Discs.pkd
+     * SingStar A Tutto Pop
+     * SingStar ABBA
+     * SingStar Hits
+     * SingStar Hits 2
+     * SingStar Pop 2009
+     * SingStar Pop Edition
+     * SingStar SuomiPop
+     * SingStar Queen
+     * SingStar Vol. 2 (USA)
+     * SingStar Vol. 3 */
+    {0x7C828270, 0x7C82C530, 0xFFFFFFFF, 0x7C82C529},
 
     /* LegacyPS2Discs.pkd
      * SingStar Chart Hits
@@ -60,18 +81,13 @@ static const uint32_t keys[][4] = {
      * SingStar Viewer (v01.00) */
     {0x7C828290, 0x7C82C550, 0xFFFFFFFF, 0x7C82C549},
 
-    /* LegacyPS2Discs.pkd
-     * SingStar A Tutto Pop
-     * SingStar ABBA
-     * SingStar Hits
-     * SingStar Hits 2
-     * SingStar Pop 2009
-     * SingStar Pop Edition
-     * SingStar SuomiPop
-     * SingStar Queen
-     * SingStar Vol. 2 (USA)
-     * SingStar Vol. 3 */
-    {0x7C828270, 0x7C82C530, 0xFFFFFFFF, 0x7C82C529},
+    /* SingStar Afrikaanse Treffers
+     * SingStar Apres-Ski Party 2
+     * SingStar Cantautori Italiani
+     * SingStar Danske Hits
+     * SingStar Patito Feo
+     * SingStar The Wiggles */
+    {0x7D61F218, 0x7D624BC8, 0xFFFFFFFF, 0x7D624BC1},
 
     /* DanceStar Party
      * Everybody Dance
@@ -82,48 +98,52 @@ static const uint32_t keys[][4] = {
      * SingStar Viewer (v07.00) */
     {0x7D61F218, 0x7D624BC0, 0xFFFFFFFF, 0x7D624BB9},
 
-    /* DanceStar Party Hits
+    /* DanceStar Digital
+     * DanceStar Party Hits
      * Everybody Dance 2
      * Everybody Dance 3
+     * Everybody Dance Digital
      * SingStar Digital
      * SingStar SuomiHelmet
      * SingStar SuomiHuiput */
     {0x7D61F218, 0x7D624728, 0xFFFFFFFF, 0x7D624721},
 
-    /* SingStar Afrikaanse Treffers
-     * SingStar Apres-Ski Party 2
-     * SingStar Cantautori Italiani
-     * SingStar Danske Hits
-     * SingStar Patito Feo
-     * SingStar The Wiggles */
-    {0x7D61F218, 0x7D624BC8, 0xFFFFFFFF, 0x7D624BC1},
-
-    /* SingStar MegaHits
+    /* SingStar Koroli vecherinok
+     * SingStar MegaHits
+     * SingStar Mistrzowska Impreza
      * SingStar Nova Geracao
+     * SingStar SuomiBileet
      * SingStar Ultimate Party */
     {0x7734DFA5, 0x68000068, 0x00000017, 0x00000000},
 
-    {0x7755DFA5, 0x68000068, 0x00000017, 0x00000000}, // SingStar Frozen
+    /* SingStar Die Eiskoenigin - Voellig unverfroren
+     * SingStar Frozen - El Reino del Hielo
+     * SingStar Frozen - Il Regno di Ghiaccio
+     * SingStar Frozen - Kraina Lodu
+     * SingStar Frozen - O Reino do Gelo */
+    {0x7755DFA5, 0x68000068, 0x00000017, 0x00000000},
 
-    {0x00000000, 0x00000000, 0x00000000, 0x00000000}  // Errata.pkd, LegacyPS2Discs.pkd (rare)
+    /* Errata_0.pkd
+     * Errata_1.pkd
+     * Errata_2.pkd
+     * LegacyPS2Discs.pkd */
+    {0x00000000, 0x00000000, 0x00000000, 0x00000000}
 };
-
-
-static const int num_keys = sizeof(keys) / sizeof(keys[0]);
 
 
 // PACKAGE uses a slightly "custom" implementation of XTEA encryption
 // using the block offset index as the IV with a constant first half,
 // encrypting that with XTEA, and using the result to XOR said block.
 // (v0 technically isn't hardcoded in the games but yk optimizations)
-static uint64_t get_xtea_xor_key(uint32_t v1, const uint32_t key[4]) {
-    uint32_t delta = 0x9E3779B9;
+static uint64_t get_xtea_xor_key(uint32_t v1, const uint32_t *key) {
+    // Reimplemented from the function at 004C8454 in
+    // the Polish release of SingStar: Ultimate Party
     uint32_t v0 = 0x12345678; // iv[0] const
     uint32_t sum = 0;
 
     for (int i = 0; i < 8; i++) {
         v0 += (((v1 << 4) ^ (v1 >> 5)) + v1) ^ (sum + key[sum & 3]);
-        sum += delta;
+        sum += 0x9E3779B9; // const uint32_t delta;
         v1 += (((v0 << 4) ^ (v0 >> 5)) + v0) ^ (sum + key[(sum >> 11) & 3]);
     }
 

@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-29 - 2024-09-28
+// Written by Edness   2024-07-29 - 2024-09-30
 #pragma once
 #include <stdint.h>
 
@@ -15,14 +15,14 @@ union {
 } pkd = {0};
 
 
-static inline char read_chunk(FILE *file, const uint8_t size, const int8_t encrypted, const uint32_t iv, const uint32_t key) {
+static inline char read_chunk(FILE *file, const uint8_t size, const int8_t encrypted, const uint32_t iv, const uint32_t *key) {
 
     if (!fread(pkd.buf, size, 1, file)) {
         print_err("Failed to read PACKAGE file data!\n");
         return -1;
     }
     if (encrypted)
-        pkd.xor ^= get_xtea_xor_key(iv, keys[key]);
+        pkd.xor ^= get_xtea_xor_key(iv, key);
 
     return 0;
 }
@@ -50,10 +50,12 @@ static inline char write_chunk(FILE *file, uint8_t *buf, uint32_t size, const in
 
 // null-terminated string
 static inline int32_t read_str(const uint8_t *buf, uint32_t offs, char *dst) {
-    //do {} while (buf[offs]);
+
     for (int i = 0; i < NAME_LEN; i++) {
+        // should always be lowercase and backslashed (normalised to hash)
+        // but allowing the full valid ASCII range just in case to be safe
         if ((buf[offs] > 0x00 && buf[offs] < 0x20) || buf[offs] > 0x7E)
-            return -1; // should always be ASCII i think
+            return -1;
         dst[i] = buf[offs];
         if (!buf[offs++]) return ++i;
     }
@@ -64,20 +66,13 @@ static inline int32_t read_str(const uint8_t *buf, uint32_t offs, char *dst) {
 
 // 32-bit little endian integer (unaligned reads lol)
 static inline int32_t read_32le(const uint8_t *buf, const uint32_t offs) {
-    return *(uint32_t *)&buf[offs];
+    return *(int32_t *)&buf[offs];
 }
 
 
 // 32-bit big endian integer
-static inline int32_t read_32be(const uint8_t *buf, uint32_t offs) {
-    uint32_t val = 0;
-
-    for (int i = 0; i < 4; i++) {
-        val <<= 8;
-        val |= buf[offs++];
-    }
-
-    return val;
+static inline int32_t read_32be(const uint8_t *buf, const uint32_t offs) {
+    return buf[offs] << 24 | buf[offs + 1] << 16 | buf[offs + 2] << 8 | buf[offs + 3];
 }
 
 
@@ -89,7 +84,7 @@ static inline int16_t read_16be(const uint8_t *buf, const uint32_t offs) {
 
 // variable big endian integer (should probs just have it call 32/64-bit reads directly)
 static inline int64_t read_be(const uint8_t *buf, uint32_t offs, const uint8_t size) {
-    uint64_t val = 0;
+    int64_t val = 0;
 
     for (int i = 0; i < size; i++) {
         val <<= 8;

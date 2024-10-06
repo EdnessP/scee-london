@@ -1,13 +1,16 @@
-SCEE London Studios PACKAGE extractor
-          Written by Edness          
+SCEE London Studio PACKAGE extractor
+           Made by Edness           
 
 
 This is a tool that extracts London Studio PACKAGE files (.PKF, .PKD, .THEMES)
-used in various PS3 titles of theirs (SingStar, DanceStar, EyePet, etc.)
+used in a multitude of PS3 releases:
+  SingStar, DanceStar Party (Everybody Dance), EyePet (Me & My Pet),
+  TV Superstars, Me Motion, Aqua Vita (Aquatopia), Mesmerize,
+  Operation Creature Feature, The Trials of Topoq, Tori-Emaki.
 It supports all of its variants - plain, compressed, encrypted, 32/64-bit.
 
 Some games may have an additional layer of SDAT/EDAT or disc sector encryption;
-this is not handled by my tool.  You must decrypt those beforehand with other
+that is not handled by this tool.  You must decrypt those beforehand with other
 already existing tools.
 
 
@@ -20,13 +23,18 @@ Provide a path to a PACKAGE file, and optionally also a path to a chosen output
 directory through a terminal or command line interface.
 
 
+== Shout-Outs ==
+Special shout-out to the friends, good folk and the community behind Redump.org
+
+
+
 == Support ==
 While completely optional, you can support me here if you wish:
 https://ko-fi.com/edness
 
 
 
-== MiniZ License ==
+== MiniZ Library License ==
 Copyright 2013-2014 RAD Game Tools and Valve Software
 Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC
 

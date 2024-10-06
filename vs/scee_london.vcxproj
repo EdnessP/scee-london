@@ -51,6 +51,9 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
+    <PostBuildEvent>
+      <Command>call $(SolutionDir)post_build.bat</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\src\scee_london.c" />
@@ -58,6 +61,7 @@
   <ItemGroup>
     <ClInclude Include="..\src\decompress.h" />
     <ClInclude Include="..\src\decrypt.h" />
+    <ClInclude Include="..\src\hash.h" />
     <ClInclude Include="..\src\reader.h" />
   </ItemGroup>
   <ItemGroup>

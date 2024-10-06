@@ -22,11 +22,6 @@
 // seems to be caused by unaligned chunks, flushing the previous constant byte stream along a new one?
 #define MAX_DEC_SIZE 0x4080
 
-// PACKAGEs use CRC-32/JAMCRC for filename hashes, which just means the final output isn't NORed
-// this is probably slower since mz_crc32 already returns it NORed per standard CRC-32, but meh.
-// UPDATE: nope, it seems like compilers just inline this whole thing and omit the last NOR, lol
-#define get_jamcrc_hash(buf, size) ~(uint32_t)mz_crc32(MZ_CRC32_INIT, buf, size - 1)
-
 // snake_case miniz func defs because muh ocd /s
 #define mz_inflate_init mz_inflateInit
 //#define mz_inflate_reset mz_inflateReset
@@ -52,7 +47,7 @@ static char decompress_chunk(mz_stream *mz, uint8_t **buf, uint32_t *size) {
         return -1;
     }
     //if (mz->avail_out == MAX_DEC_SIZE) return 0; // nothing to write
-    // reset to the base of malloc'd block
+    // reset to the base of malloc'd block, and point to unpacked data
     *size = MAX_DEC_SIZE - mz->avail_out;
     mz->avail_out = MAX_DEC_SIZE;
     mz->next_out -= *size;

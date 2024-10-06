@@ -1,7 +1,6 @@
-// SCEE London Studios PS3 PACKAGE tool
-#define AUTHOR "Edness"
+// SCEE London Studio PS3 PACKAGE extractor   Written by Edness
+#define BUILDDATE "2024-07-13 - 2024-10-06"
 #define VERSION "v1.2.1"
-#define BUILDDATE "2024-07-13 - 2024-09-28"
 
 #define _FILE_OFFSET_BITS 64
 #define _LARGEFILE64_SOURCE 1
@@ -12,10 +11,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define print_err(msg) printf("Error: %s", msg) // printf("Error: " msg) also works but...
+#define print_err(msg) printf("\nERROR: %s", msg) // printf("\nERROR: " msg) also works but...
 
 #include "decompress.h"
 #include "decrypt.h"
+#include "hash.h"
 #include "reader.h"
 
 #define ID_PACKAGE 0x204547414B434150
@@ -28,7 +28,7 @@
 #if defined(WIN32) || defined(_WIN32) || defined(_WIN64)
     #define HELP_USAGE_IN "X:\\path\\to\\pack.pkd"
     #define HELP_USAGE_OUT "X:\\path\\to\\out_dir"
-    #define PATH_LEN 260
+    #define PATH_LEN 259 // some testing shows it to be 259 not 260? (w/ null, so 258)
     #define PATH_SEP "\\"
     #include <windows.h>
 
@@ -70,7 +70,7 @@ static FILE *open_file(const char *base_path, char *file_path) {
     }
     i = 0;
 #endif
-    printf("Extracting %s\n", file_path); // print after separator fixup
+    printf("Extracting %s\n", file_path); // moved here to print after separator fixups
     if (snprintf(out_path, PATH_LEN, "%s" PATH_SEP "%s", base_path, file_path) >= PATH_LEN) {
         print_err("File output path is too long!\n");
         return NULL;
@@ -111,9 +111,8 @@ static int extract_package(FILE *in_file, const char *out_path) {
 
     char compressed = 0;
     char encrypted = 1;
-    int target_key = -1;
-    //uint32_t key[4] = keys[num_keys - 1];
-    uint64_t target_hdr;
+    uint32_t *key = NULL; //keys[NUM_KEYS - 1];
+    uint64_t target_hdr = ID_PACKAGE;
 
     uint8_t *hdr_c = NULL;
     uint64_t *hdr_i = NULL;
@@ -122,11 +121,9 @@ static int extract_package(FILE *in_file, const char *out_path) {
     FILE *out_file = NULL;
 
 
-    //strncpy(pkd.buf, "PACKAGE ", sizeof(pkd.buf));
-    target_hdr = ID_PACKAGE; // pkd.xor;
-
-
-    // find the correct key
+    /////////////////////
+    // KEY DETERMINING //
+    /////////////////////
     if (!fread(pkd.buf, sizeof(pkd.buf), 1, in_file)) {
         print_err("Invalid PACKAGE file!\n");
         goto fail;
@@ -136,9 +133,13 @@ static int extract_package(FILE *in_file, const char *out_path) {
         encrypted = 0;
     }
 
+    // assigning the correct key pointer avoids it having
+    // to calculate the pointer on each read+decrypt call
     if (encrypted) {
+        int target_key = -1;
+
         target_hdr ^= pkd.xor;
-        for (int i = 0; i < num_keys; i++) {
+        for (int i = 0; i < NUM_KEYS; i++) {
             if ((get_xtea_xor_key(iv, keys[i])) == target_hdr) {
                 target_key = i;
                 break;
@@ -148,6 +149,8 @@ static int extract_package(FILE *in_file, const char *out_path) {
             print_err("Failed to determine PACKAGE encryption key!\n");
             goto fail;
         }
+
+        key = keys[target_key];
     }
 
     fseek(in_file, 0x0, SEEK_SET);
@@ -158,14 +161,13 @@ static int extract_package(FILE *in_file, const char *out_path) {
     ////////////////////
     hdr_c = (uint8_t *)malloc(HEADER_SIZE);
     hdr_i = (uint64_t *)hdr_c;
-
     if (!hdr_c) {
         print_err("Failed to allocate memory!\n");
         goto fail;
     }
 
     for (/*iv = 0*/; iv < 3; iv++) {
-        if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv, target_key)) goto fail;
+        if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv, key)) goto fail;
         hdr_i[iv] = pkd.xor;
     }
 
@@ -182,19 +184,21 @@ static int extract_package(FILE *in_file, const char *out_path) {
     flags = read_16be(hdr_c, 0xC);
     // bit 0 is a 64-bit integer flag
     size = (flags & 0x1) ? 0x4 : 0x8;
-    hdr_offs = 0xE + size;
     // bits 1 and 2 are always set?  the rest are always zero?
-    if (!(flags & 0x2) || !(flags & 0x4) || (flags & ~0x7)) {
+    if ((flags & ~0x1) != 0x6) {
+        // better optimised than what compilers make of the check
+        //  (!(flags & 0x2) || !(flags & 0x4) || (flags & ~0x7))
         print_err("Invalid PACKAGE header configuration!\n");
         goto fail;
     }
+
+    hdr_offs = 0xE + size;
     hdr_size = read_be(hdr_c, 0xE, size) + hdr_offs;
     hdr_end_read = hdr_size & 0x7;
     hdr_align = hdr_size + (0x8 - hdr_end_read);
-    
+
     hdr_c = (uint8_t *)realloc(hdr_c, hdr_align);
     hdr_i = (uint64_t *)hdr_c;
-
     if (!hdr_c) {
         print_err("Failed to allocate memory!\n");
         goto fail;
@@ -203,11 +207,11 @@ static int extract_package(FILE *in_file, const char *out_path) {
     //hdr_align >>= 3; // div 8
     hdr_align = hdr_size >> 3;
     for (/*iv = 3*/; iv < hdr_align; iv++) {
-        if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv, target_key)) goto fail;
+        if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv, key)) goto fail;
         hdr_i[iv] = pkd.xor;
     }
     if (hdr_end_read) {
-        if (read_chunk(in_file, hdr_end_read, encrypted, iv, target_key)) goto fail;
+        if (read_chunk(in_file, hdr_end_read, encrypted, iv, key)) goto fail;
         hdr_i[iv] = pkd.xor;
     }
 
@@ -242,6 +246,9 @@ static int extract_package(FILE *in_file, const char *out_path) {
         compressed = 0;
 
 
+        /////////////////////////////////////////
+        // read file metadata and prepare data //
+        /////////////////////////////////////////
         name_hash = read_32be(hdr_c, hdr_offs); hdr_offs += 4;
         name_size = read_str(hdr_c, hdr_offs, file_name); hdr_offs += name_size;
         //printf("%s = 0x%08X, jamcrc = 0x%08X\n", file_name, name_hash, crc32_jamcrc(file_name, name_size));
@@ -257,6 +264,9 @@ static int extract_package(FILE *in_file, const char *out_path) {
         //hdr_offs += 4 + size * 2 + name_size;
         //printf("Read 0x%08X bytes from 0x%08X for %s that hashes to 0x%08X\n", file_size, file_offs, file_name, name_hash);
 
+        // single line progress bar extraction test (kinda buggy with long names?)
+        //printf("Extracting %3d%% %s\r", (hdr_offs * 100) / hdr_size, file_name);
+
 
         start_skip = file_offs & 0x7;
         start_offs = file_offs - start_skip;
@@ -266,10 +276,8 @@ static int extract_package(FILE *in_file, const char *out_path) {
         end_read = end_offs & 0x7;
         // not aligning end offset, because it will be outside of the loop
 
-        //chunks = (file_size - start_read - end_read) >> 3;
-        //chunks = (start_skip + file_size) >> 3;
         end_chunk = (end_offs - end_read) >> 3;
-        iv = start_offs >> 3;
+        iv = start_offs >> 3; // start_chunk
 
         // i cba to deal with non-standardized 64-bit seeks
         fsetpos(in_file, (fpos_t *)&start_offs);
@@ -278,25 +286,30 @@ static int extract_package(FILE *in_file, const char *out_path) {
         if (!out_file) goto fail;
 
 
+        /////////////////////////////////////////
+        // decrypt, decompress, and write data //
+        /////////////////////////////////////////
         // file is empty
         if (!file_size) goto continue_loop;
 
-        // file is small enough to fit in a chunk (can't be ZLIB/ERDA)
+        // file is small enough to fit in a single chunk (can't be ZLIB/ERDA)
         // smallest possible size w/ header and an empty zlib stream is 0x14 for ZLIB and 0x10 for ERDA
         if (file_size <= start_read) {
-            if (read_chunk(in_file, start_skip + file_size, encrypted, iv, target_key)) goto fail;
+            if (read_chunk(in_file, start_skip + file_size, encrypted, iv, key)) goto fail;
             if (write_chunk(out_file, &pkd.buf[start_skip], file_size, compressed, &mz)) goto fail;
             goto continue_loop;
         }
 
 
         for (int i = 0; i < 3; i++) {
-            if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv++, target_key)) goto fail;
+            if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv++, key)) goto fail;
             tmp_i[i] = pkd.xor;
 
-            if (iv == end_chunk && end_read) {
-                if (read_chunk(in_file, end_read, encrypted, iv, target_key)) goto fail;
-                tmp_i[++i] = pkd.xor;
+            if (iv == end_chunk) {
+                if (end_read) {
+                    if (read_chunk(in_file, end_read, encrypted, iv, key)) goto fail;
+                    tmp_i[++i] = pkd.xor;
+                }
                 break;
             }
         }
@@ -341,24 +354,24 @@ static int extract_package(FILE *in_file, const char *out_path) {
 
         // unaligned start chunk
         if (write_chunk(out_file, &tmp_c[start_skip], HEADER_SIZE - start_skip, compressed, &mz)) goto fail;
-        //if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv++, target_key)) goto fail;
+        //if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv++, key)) goto fail;
         //fwrite(&pkd.buf[start_skip], start_read, 1, out_file);
 
         // aligned main chunks
         for (; iv < end_chunk; iv++) {
-            if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv, target_key)) goto fail;
+            if (read_chunk(in_file, sizeof(pkd.buf), encrypted, iv, key)) goto fail;
             if (write_chunk(out_file, pkd.buf, sizeof(pkd.buf), compressed, &mz)) goto fail;
         }
 
         // unaligned end chunk
         // using sizeof(pkd.buf) may cause an EOF error on the final file
         if (end_read) {
-            if (read_chunk(in_file, end_read, encrypted, iv, target_key)) goto fail;
+            if (read_chunk(in_file, end_read, encrypted, iv, key)) goto fail;
             if (write_chunk(out_file, pkd.buf, end_read, compressed, &mz)) goto fail;
         }
 
     continue_loop:
-        // gotos bad blah blah, i don't wanna write this for each continue;
+        // gotos bad blah blah, im not writing this for each continue;
         if (compressed) {
             if (file_hdr == ID_ZLIB && d_file_size != mz.total_out) {
                 print_err("Failed to decompress PACKAGE file data!\n");
@@ -388,7 +401,7 @@ fail:
 static void print_err_usage(const char *msg) {
     printf(
         "Usage:    \"" HELP_USAGE_IN "\"\n"
-        "Optional: \"" HELP_USAGE_IN "\" \"" HELP_USAGE_OUT "\"\n\n"
+        "Optional: \"" HELP_USAGE_IN "\" \"" HELP_USAGE_OUT "\"\n"
     );
     print_err(msg);
 }
@@ -401,7 +414,7 @@ int main(int argc, char *argv[]) {
 
     printf(
         "SCEE London Studio PACKAGE extractor\n"
-        "Written by " AUTHOR "   " VERSION "\n"
+        "Written by Edness   " VERSION "\n"
         BUILDDATE "\n\n"
     );
 
@@ -433,10 +446,12 @@ int main(int argc, char *argv[]) {
     get_abspath(out_path, abs_path);
 
 
+    // this printf just prevents a triple-newline if it fails before extracting anything lol
+    printf("Reading PACKAGE file...\n");
     if (extract_package(in_file, abs_path))
         goto fail;
 
-    printf("Done! Output written to %s\n", abs_path);
+    printf("\nDone! Output written to %s\n", abs_path);
     fclose(in_file);
     return 0;
 
