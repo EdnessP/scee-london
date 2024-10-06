@@ -111,7 +111,7 @@ static int extract_package(FILE *in_file, const char *out_path) {
 
     char compressed = 0;
     char encrypted = 1;
-    uint32_t *key = NULL; //keys[NUM_KEYS - 1];
+    uint32_t const *key = NULL;
     uint64_t target_hdr = ID_PACKAGE;
 
     uint8_t *hdr_c = NULL;

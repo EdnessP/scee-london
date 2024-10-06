@@ -11,9 +11,7 @@
 // That block is then decrypted, and from the result of that, starting with the
 // data at 0xB4 of the decrypted block, the final PKD key is eventually derived
 
-// gcc complains about the const, because I reworked it to pre-calculate the key
-// pointer, but without it the key table is no longer placed in a read-only area
-// And a shout-out goes out to the Redump.org community for making this possible
+// Shout-out to the Redump.org community for making this possible
 static const uint32_t keys[][4] = {
     {0xE2AC48C5, 0x1C511D8E, 0x8158606D, 0x8086ED1D}, // SingStar (Europe) (Pack0.pkd)
     {0xD2229BCB, 0xE9D5207A, 0x88960EEB, 0x7A848797}, // SingStar (Europe) (Pack1.pkd)
