@@ -47,7 +47,7 @@ static const uint32_t keys[][4] = {
      * SingStar Pop 2009
      * SingStar Pop Edition
      * SingStar SuomiPop
-     * SingStar Queen
+     * SingStar Queen (Europe)
      * SingStar Vol. 2 (USA)
      * SingStar Vol. 3 */
     {0x7C828270, 0x7C82C530, 0xFFFFFFFF, 0x7C82C529},
@@ -69,7 +69,7 @@ static const uint32_t keys[][4] = {
      * SingStar Polskie Hity
      * SingStar Polskie Hity 2
      * SingStar Portugal Hits
-     * SingStar Queen
+     * SingStar Queen (USA)
      * SingStar Starter Pack
      * SingStar Studio 100
      * SingStar SuomiHitit
