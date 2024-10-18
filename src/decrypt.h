@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-13 - 2024-10-06
+// Written by Edness   2024-07-13 - 2024-10-09
 #pragma once
 #include <stdint.h>
 
@@ -40,85 +40,85 @@ static const uint32_t keys[][4] = {
     {0x16050B5E, 0xD8E1AE59, 0x4D7EBFD9, 0xE0DFD4ED}, // SingStar Vol. 2 (Spain) (Pack2.pkd)
 
     /* LegacyPS2Discs.pkd
-     * SingStar A Tutto Pop
-     * SingStar ABBA
-     * SingStar Hits
-     * SingStar Hits 2
-     * SingStar Pop 2009
-     * SingStar Pop Edition
-     * SingStar SuomiPop
+     * SingStar A Tutto Pop (Italy)
+     * SingStar ABBA (Europe, Spain, USA)
+     * SingStar Hits (France)
+     * SingStar Hits 2 (France)
+     * SingStar Pop 2009 (Spain)
+     * SingStar Pop Edition (Australia, Europe, Germany)
+     * SingStar SuomiPop (Finland)
      * SingStar Queen (Europe)
      * SingStar Vol. 2 (USA)
-     * SingStar Vol. 3 */
+     * SingStar Vol. 3 (Europe, Germany, Italy, Spain) */
     {0x7C828270, 0x7C82C530, 0xFFFFFFFF, 0x7C82C529},
 
     /* LegacyPS2Discs.pkd
-     * SingStar Chart Hits
-     * SingStar Chartbreaker
-     * SingStar Dance
-     * SingStar Fussballhits
-     * SingStar Guitar
-     * SingStar Intro
-     * SingStar Kent
-     * SingStar Latino
-     * SingStar Made in Germany
-     * SingStar Mallorca Party
-     * SingStar Mecano
-     * SingStar Morangos com Acucar
-     * SingStar Motown
-     * SingStar Polskie Hity
-     * SingStar Polskie Hity 2
-     * SingStar Portugal Hits
+     * SingStar Chart Hits (Australia)
+     * SingStar Chartbreaker (Europe)
+     * SingStar Dance (Europe, Spain, USA)
+     * SingStar Fussballhits (Germany)
+     * SingStar Guitar (Australia, Europe, Germany, Spain)
+     * SingStar Intro (Italy)
+     * SingStar Kent (Scandinavia)
+     * SingStar Latino (USA)
+     * SingStar Made in Germany (Germany)
+     * SingStar Mallorca Party (Germany)
+     * SingStar Mecano (Spain)
+     * SingStar Morangos com Acucar (Portugal)
+     * SingStar Motown (Europe)
+     * SingStar Polskie Hity (Poland)
+     * SingStar Polskie Hity 2 (Poland)
+     * SingStar Portugal Hits (Portugal)
      * SingStar Queen (USA)
-     * SingStar Starter Pack
-     * SingStar Studio 100
-     * SingStar SuomiHitit
-     * SingStar Svenska Stjaernor
-     * SingStar Take That
-     * SingStar Vasco
-     * SingStar Viewer (v01.00) */
+     * SingStar Starter Pack (Europe, Germany, Netherlands, Spain)
+     * SingStar Studio 100 (Netherlands)
+     * SingStar SuomiHitit (Finland)
+     * SingStar Svenska Stjaernor (Sweden)
+     * SingStar Take That (Europe)
+     * SingStar Vasco (Italy)
+     * SingStar Viewer (World) (v01.00) */
     {0x7C828290, 0x7C82C550, 0xFFFFFFFF, 0x7C82C549},
 
-    /* SingStar Afrikaanse Treffers
-     * SingStar Apres-Ski Party 2
-     * SingStar Cantautori Italiani
-     * SingStar Danske Hits
-     * SingStar Patito Feo
-     * SingStar The Wiggles */
+    /* SingStar Afrikaanse Treffers (South Africa)
+     * SingStar Apres-Ski Party 2 (Germany)
+     * SingStar Cantautori Italiani (Italy)
+     * SingStar Danske Hits (Denmark)
+     * SingStar Patito Feo (Spain)
+     * SingStar The Wiggles (Australia) */
     {0x7D61F218, 0x7D624BC8, 0xFFFFFFFF, 0x7D624BC1},
 
-    /* DanceStar Party
-     * Everybody Dance
-     * SingStar Back to the 80s
-     * SingStar Grandes Exitos
-     * SingStar Return to the 80s
-     * SingStar SuomiSuosikit
-     * SingStar Viewer (v07.00) */
+    /* DanceStar Party (Europe, Germany, Spain)
+     * Everybody Dance (USA)
+     * SingStar Back to the 80s (Europe)
+     * SingStar Grandes Exitos (Spain)
+     * SingStar Return to the 80s (Netherlands)
+     * SingStar SuomiSuosikit (Finland)
+     * SingStar Viewer (World) (v07.00) */
     {0x7D61F218, 0x7D624BC0, 0xFFFFFFFF, 0x7D624BB9},
 
-    /* DanceStar Digital
-     * DanceStar Party Hits
-     * Everybody Dance 2
-     * Everybody Dance 3
-     * Everybody Dance Digital
-     * SingStar Digital
-     * SingStar SuomiHelmet
-     * SingStar SuomiHuiput */
+    /* DanceStar Digital (World)
+     * DanceStar Party Hits (Europe, Germany, Spain)
+     * Everybody Dance 2 (Latin America)
+     * Everybody Dance 3 (Latin America)
+     * Everybody Dance Digital (World)
+     * SingStar Digital (World)
+     * SingStar SuomiHelmet (Finland)
+     * SingStar SuomiHuiput (Finland) */
     {0x7D61F218, 0x7D624728, 0xFFFFFFFF, 0x7D624721},
 
-    /* SingStar Koroli vecherinok
-     * SingStar MegaHits
-     * SingStar Mistrzowska Impreza
-     * SingStar Nova Geracao
-     * SingStar SuomiBileet
-     * SingStar Ultimate Party */
+    /* SingStar Koroli vecherinok (Russia)
+     * SingStar MegaHits (Spain)
+     * SingStar Mistrzowska Impreza (Poland)
+     * SingStar Nova Geracao (Portugal)
+     * SingStar SuomiBileet (Finland)
+     * SingStar Ultimate Party (Europe, Germany) */
     {0x7734DFA5, 0x68000068, 0x00000017, 0x00000000},
 
-    /* SingStar Die Eiskoenigin - Voellig unverfroren
-     * SingStar Frozen - El Reino del Hielo
-     * SingStar Frozen - Il Regno di Ghiaccio
-     * SingStar Frozen - Kraina Lodu
-     * SingStar Frozen - O Reino do Gelo */
+    /* SingStar Die Eiskoenigin - Voellig unverfroren (Germany)
+     * SingStar Frozen - El Reino del Hielo (Spain)
+     * SingStar Frozen - Il Regno di Ghiaccio (Italy)
+     * SingStar Frozen - Kraina Lodu (Poland)
+     * SingStar Frozen - O Reino do Gelo (Portugal) */
     {0x7755DFA5, 0x68000068, 0x00000017, 0x00000000},
 
     /* Errata_0.pkd
@@ -140,9 +140,9 @@ static uint64_t get_xtea_xor_key(uint32_t v1, const uint32_t *key) {
     uint32_t sum = 0;
 
     for (int i = 0; i < 8; i++) {
-        v0 += (((v1 << 4) ^ (v1 >> 5)) + v1) ^ (sum + key[sum & 3]);
+        v0 += (v1 << 4 ^ v1 >> 5) + v1 ^ sum + key[sum & 3];
         sum += 0x9E3779B9; // const uint32_t delta;
-        v1 += (((v0 << 4) ^ (v0 >> 5)) + v0) ^ (sum + key[(sum >> 11) & 3]);
+        v1 += (v0 << 4 ^ v0 >> 5) + v0 ^ sum + key[sum >> 11 & 3];
     }
 
     return (uint64_t)v1 << 32 | v0;
