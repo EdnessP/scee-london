@@ -388,10 +388,6 @@ int main(int argc, path_t **argv) {
     );
 
 
-#if IS_WINDOWS
-    argv = get_argv_unicode(&argc);
-#endif
-
     if (argc < 2) {
         print_err_usage("Not enough arguments!\n");
         goto fail;
