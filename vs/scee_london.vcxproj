@@ -63,6 +63,7 @@
     <ClInclude Include="..\src\decrypt.h" />
     <ClInclude Include="..\src\hash.h" />
     <ClInclude Include="..\src\reader.h" />
+    <ClInclude Include="..\src\defs.h" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\miniz\miniz.c" />

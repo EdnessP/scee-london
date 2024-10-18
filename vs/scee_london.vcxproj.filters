@@ -32,6 +32,9 @@
     <ClInclude Include="..\src\reader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\defs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\miniz\miniz.c">

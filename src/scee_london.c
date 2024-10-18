@@ -1,6 +1,6 @@
 // SCEE London Studio PS3 PACKAGE extractor   Written by Edness
-#define BUILDDATE "2024-07-13 - 2024-10-09"
-#define VERSION "v1.2.1"
+#define BUILDDATE "2024-07-13 - 2024-10-18"
+#define VERSION "v1.3"
 
 #define _FILE_OFFSET_BITS 64
 #define _LARGEFILE64_SOURCE 1
@@ -25,9 +25,10 @@
 #define HEADER_SIZE 0x18
 
 
-static FILE *open_file(const char *base_path, char *file_path) {
-    char out_path[PATH_LEN];
+static FILE *create_file(const path_t *base_path, char *file_path) {
+    path_t out_path[PATH_LEN];
     FILE *out_file;
+    int path_len;
     int i = 0;
 
 
@@ -35,13 +36,13 @@ static FILE *open_file(const char *base_path, char *file_path) {
     // PACKAGE filenames normally use backslashes
     while (file_path[i]) {
         if (file_path[i] == '\\')
-            file_path[i] = PATH_SEP[0];
+            file_path[i] = PATH_SEP;
         i++;
     }
     i = 0;
 #endif
-    printf("Extracting %s\n", file_path); // moved here to print after separator fixups
-    if (snprintf(out_path, PATH_LEN, "%s" PATH_SEP "%s", base_path, file_path) >= PATH_LEN) {
+    path_len = snprintf_path(out_path, PATH_LEN, PATH_JOIN, base_path, file_path);
+    if (path_len < 0 || path_len >= PATH_LEN) { // swprintf returns -1 instead???
         print_err("File output path is too long!\n");
         return NULL;
     }
@@ -52,18 +53,14 @@ static FILE *open_file(const char *base_path, char *file_path) {
         if (is_path_sep(out_path[i])) {
             out_path[i] = '\x00';
             create_dir(out_path);
-            out_path[i] = PATH_SEP[0];
+            out_path[i] = PATH_SEP;
         }
         i++;
     }
 
-    out_file = fopen(out_path, "wb");
+    out_file = open_file(out_path, "wb");
     if (!out_file) {
         print_err("Failed to open the output file! Is it in a read-only location?\n");
-#if IS_WINDOWS
-        if (strchr(out_path, '?'))
-            printf("Path may contain unicode characters not supported by the current codepage!\n");
-#endif
         return NULL; // technically not needed since out_file is already NULL
     }
 
@@ -71,7 +68,7 @@ static FILE *open_file(const char *base_path, char *file_path) {
 }
 
 
-static int extract_package(FILE *in_file, const char *out_path) {
+static int extract_package(FILE *in_file, const path_t *out_path) {
     uint8_t size;
     uint16_t flags;
     uint32_t hdr_size, hdr_align, hdr_offs;
@@ -252,8 +249,10 @@ static int extract_package(FILE *in_file, const char *out_path) {
         // i cba to deal with non-standardized 64-bit seeks
         fsetpos(in_file, (fpos_t *)&start_offs);
 
-        out_file = open_file(out_path, file_name);
+        out_file = create_file(out_path, file_name);
         if (!out_file) goto fail;
+
+        printf("%3d%% | Extracting: %s\n", hdr_offs * 100 / hdr_size, file_name);
 
 
         /////////////////////////////////////////
@@ -377,10 +376,10 @@ static void print_err_usage(const char *msg) {
 }
 
 
-int main(int argc, char *argv[]) {
+int main(int argc, path_t **argv) {
     FILE *in_file = NULL;
-    char abs_path[PATH_LEN];
-    char out_path[PATH_LEN];
+    path_t abs_path[PATH_LEN];
+    path_t out_path[PATH_LEN];
 
     printf(
         "SCEE London Studio PACKAGE extractor\n"
@@ -389,27 +388,27 @@ int main(int argc, char *argv[]) {
     );
 
 
+#if IS_WINDOWS
+    argv = get_argv_unicode(&argc);
+#endif
+
     if (argc < 2) {
         print_err_usage("Not enough arguments!\n");
         goto fail;
     }
 
     //LPWSTR a = GetCommandLineW(); // cba to deal with this
-    in_file = fopen(argv[1], "rb");
+    in_file = open_file(argv[1], "rb");
     if (!in_file) {
         print_err_usage("Failed to open the input file!\n");
-#if IS_WINDOWS
-        if (strchr(argv[1], '?'))
-            printf("Path may contain unicode characters not supported by the current codepage!\n");
-#endif
         goto fail;
     }
 
     //snprintf(out_path, PATH_LEN, "%s", argc > 2 ? argv[2] : argv[1]);
     if (argc == 2)
-        snprintf(out_path, PATH_LEN, "%s_out", argv[1]);
+        snprintf_path(out_path, PATH_LEN, "%s_out", argv[1]);
     else
-        snprintf(out_path, PATH_LEN, "%s", argv[2]);
+        snprintf_path(out_path, PATH_LEN, "%s", argv[2]);
     // due to linux/posix shenanigans, the initial absolute path has to be pregenerated here
     // because unlike windows, i can't easily generate a proper canonical path. if there are
     // multiple nonexistent subdirs user wants to dump this to, it'll only go to the 1st one
@@ -421,7 +420,7 @@ int main(int argc, char *argv[]) {
     if (extract_package(in_file, abs_path))
         goto fail;
 
-    printf("\nDone! Output written to %s\n", abs_path);
+    printf_path("\nDone! Output written to %s\n", abs_path);
     fclose(in_file);
     return 0;
 
