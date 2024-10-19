@@ -1,5 +1,5 @@
 // SCEE London Studio PS3 PACKAGE extractor   Written by Edness
-#define BUILDDATE "2024-07-13 - 2024-10-18"
+#define BUILDDATE "2024-07-13 - 2024-10-19"
 #define VERSION "v1.3"
 
 #define _FILE_OFFSET_BITS 64
@@ -25,7 +25,7 @@
 #define HEADER_SIZE 0x18
 
 
-static FILE *create_file(const path_t *base_path, char *file_path) {
+static FILE *create_file(const path_t *base_path, uint8_t *file_path) {
     path_t out_path[PATH_LEN];
     FILE *out_file;
     int path_len;
@@ -58,7 +58,7 @@ static FILE *create_file(const path_t *base_path, char *file_path) {
         i++;
     }
 
-    out_file = open_file(out_path, "wb");
+    out_file = fopen(out_path, "wb");
     if (!out_file) {
         print_err("Failed to open the output file! Is it in a read-only location?\n");
         return NULL; // technically not needed since out_file is already NULL
@@ -186,7 +186,7 @@ static int extract_package(FILE *in_file, const path_t *out_path) {
     ////////////////
     // EXTRACTION //
     ////////////////
-    char file_name[NAME_LEN];
+    uint8_t file_name[NAME_LEN];
     uint8_t tmp_c[HEADER_SIZE] = {0};
     uint64_t *tmp_i = (uint64_t *)tmp_c;
     mz_stream mz = {0};
@@ -393,8 +393,7 @@ int main(int argc, path_t **argv) {
         goto fail;
     }
 
-    //LPWSTR a = GetCommandLineW(); // cba to deal with this
-    in_file = open_file(argv[1], "rb");
+    in_file = fopen(argv[1], "rb");
     if (!in_file) {
         print_err_usage("Failed to open the input file!\n");
         goto fail;
@@ -416,6 +415,7 @@ int main(int argc, path_t **argv) {
     if (extract_package(in_file, abs_path))
         goto fail;
 
+    // this still prints question marks on windows, but w/e
     printf_path("\nDone! Output written to %s\n", abs_path);
     fclose(in_file);
     return 0;

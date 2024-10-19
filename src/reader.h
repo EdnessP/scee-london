@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-29 - 2024-09-30
+// Written by Edness   2024-07-29 - 2024-10-19
 #pragma once
 #include <stdint.h>
 
@@ -49,7 +49,7 @@ static inline char write_chunk(FILE *file, uint8_t *buf, uint32_t size, const in
 ////////////////////
 
 // null-terminated string
-static inline int32_t read_str(const uint8_t *buf, uint32_t offs, char *dst) {
+static inline int32_t read_str(const uint8_t *buf, uint32_t offs, uint8_t *dst) {
 
     for (int i = 0; i < NAME_LEN; i++) {
         // should always be lowercase and backslashed (normalised to hash)
