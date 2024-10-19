@@ -252,6 +252,10 @@ static int extract_package(FILE *in_file, const path_t *out_path) {
         out_file = create_file(out_path, file_name);
         if (!out_file) goto fail;
 
+        // printing here after the path separators get fixed up by create_file
+        // one small downside is if the output path is too long, you won't see
+        // how long the filename is to try and guess how many dirs to go back.
+        // (but like anyone is gonna do that, longest path seen is ~135 chars)
         printf("%3d%% | Extracting: %s\n", hdr_offs * 100 / hdr_size, file_name);
 
 
