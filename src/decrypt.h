@@ -124,7 +124,8 @@ static const uint32_t keys[][4] = {
     /* Errata_0.pkd
      * Errata_1.pkd
      * Errata_2.pkd
-     * LegacyPS2Discs.pkd */
+     * LegacyPS2Discs.pkd
+     * Pak_W.pak */
     {0x00000000, 0x00000000, 0x00000000, 0x00000000}
 };
 

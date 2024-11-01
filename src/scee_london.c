@@ -68,7 +68,7 @@ static FILE *create_file(const path_t *base_path, uint8_t *file_path) {
 }
 
 
-static int extract_package(FILE *in_file, const path_t *out_path) {
+static char extract_package(FILE *in_file, const path_t *out_path) {
     uint8_t size;
     uint16_t flags;
     uint32_t hdr_size, hdr_align, hdr_offs;
