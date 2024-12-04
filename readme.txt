@@ -2,8 +2,8 @@ SCEE London Studio PACKAGE extractor
            Made by Edness           
 
 
-This is a tool that extracts London Studio PACKAGE files (.PKF, .PKD, .THEMES)
-used in a multitude of PS3 releases:
+This tool extracts SCEE London Studio PACKAGE (.PKF, .PKD, .PKG, .PAK, .THEMES)
+files used in a multitude of PS3 releases:
   SingStar, DanceStar Party (Everybody Dance), EyePet (Me & My Pet),
   TV Superstars, Me Motion, Aqua Vita (Aquatopia), Mesmerize,
   Operation Creature Feature, The Trials of Topoq, Tori-Emaki.
