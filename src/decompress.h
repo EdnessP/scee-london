@@ -1,6 +1,7 @@
-// Written by Edness   2024-09-17 - 2024-09-28
+// Written by Edness   2024-09-17 - 2025-10-05
 #pragma once
 #include <stdint.h>
+#include <stdbool.h>
 
 #define MINIZ_NO_ARCHIVE_APIS
 #define MINIZ_NO_ARCHIVE_WRITING_APIS
@@ -10,7 +11,9 @@
 
 #define MINIZ_HAS_64BIT_REGISTERS 1
 #define MINIZ_LITTLE_ENDIAN 1
-#define MINIZ_USE_UNALIGNED_LOADS_AND_STORES 1
+#if defined(__x86_64__) || defined(__amd64__) || defined(_M_X64) || defined(_M_AMD64)
+    #define MINIZ_USE_UNALIGNED_LOADS_AND_STORES 1
+#endif
 
 #include "miniz/miniz.h"
 #include "miniz/miniz.c"
@@ -28,7 +31,7 @@
 #define mz_inflate_end mz_inflateEnd
 
 
-static char decompress_chunk(mz_stream *mz, uint8_t **buf, uint32_t *size) {
+static bool decompress_chunk(mz_stream *mz, uint8_t **buf, uint32_t *size) {
     //uint8_t *buf = *in_buf;
     //uint32_t size = *in_size;
 
@@ -37,14 +40,14 @@ static char decompress_chunk(mz_stream *mz, uint8_t **buf, uint32_t *size) {
     // the zlib streams have intentionally corrupt footers
     // by SCEE but those shouldn't raise these errors here
     if (mz_inflate(mz, MZ_NO_FLUSH) < MZ_OK) {
-        print_err("Failed to decompress PACKAGE file data!\n");
-        return -1;
+        print_err(ERR_ZLIB_DECOMPRESS);
+        return false;
     }
     if (!mz->avail_out) { // is this even possible?
         // mz_inflate will eventually fail at the end when i tested with
         // a small buffer, so maybe there is a proper way to handle this
-        print_err("Out of decompressor buffer memory!\n");
-        return -1;
+        print_err(ERR_ZLIB_MEMORY);
+        return false;
     }
     //if (mz->avail_out == MAX_DEC_SIZE) return 0; // nothing to write
     // reset to the base of malloc'd block, and point to unpacked data
@@ -53,5 +56,5 @@ static char decompress_chunk(mz_stream *mz, uint8_t **buf, uint32_t *size) {
     mz->next_out -= *size;
     *buf = mz->next_out;
 
-    return 0;
+    return true;
 }

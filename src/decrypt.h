@@ -1,15 +1,39 @@
-// Written by Edness   2024-07-13 - 2024-10-09
+// Written by Edness   2024-07-13 - 2025-10-05
 #pragma once
 #include <stdint.h>
 
 #define NUM_KEYS sizeof(keys) / sizeof(keys[0])
 
 
-// TODO: Info on how the keys are derived
-// A 0x100 byte block is loaded from ...somewhere, I'm not entirely sure where.
-// It's treated as an array of 64 x 32-bit integers, and the array is reversed.
-// That block is then decrypted, and from the result of that, starting with the
-// data at 0xB4 of the decrypted block, the final PKD key is eventually derived
+/* Keystore derivation process information, researched from the
+function at 00086094 in the Polish release of SingStar Ultimate Party
+
+A 0x100 byte keystore is loaded either from the EBOOT.BIN, or from keys.edat
+Each block is 0x200 bytes long, the lower 0x100 of them being the actual key
+It's treated as an array of 64 x 32-bit integers, and it gets endian swapped
+
+??? TODO // first decrypt/derive step to new 0x100 keystore block ???
+
+Still treated as an array of 64 x 32-bit integers, and the array is reversed
+That block is then decrypted, and from the result of that, starting with the
+data at 0xB4 of the decrypted block, the final PKD key is eventually derived
+*/
+
+
+
+
+/*
+union {
+    uint32_t key[4];
+    uint8_t buf[16];
+} psid;
+*/
+
+static bool has_psid_key = false;
+static uint32_t psid[4] =
+    {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}; // DLC keystore
+static uint32_t drmkey[4] =
+    {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}; // SingStore DRM
 
 // Shout-out to the Redump.org community for making this possible
 static const uint32_t keys[][4] = {
@@ -130,6 +154,8 @@ static const uint32_t keys[][4] = {
 };
 
 
+//static inline void do_xtea_rounds(int rounds, uint32_t *v0, uint32_t *v1, uint32_t *sum) {}
+
 // PACKAGE uses a slightly "custom" implementation of XTEA encryption
 // using the block offset index as the IV with a constant first half,
 // encrypting that with XTEA, and using the result to XOR said block.
@@ -140,11 +166,36 @@ static uint64_t get_xtea_xor_key(uint32_t v1, const uint32_t *key) {
     uint32_t v0 = 0x12345678; // iv[0] const
     uint32_t sum = 0;
 
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) { // standard (8 rounds)
         v0 += (v1 << 4 ^ v1 >> 5) + v1 ^ sum + key[sum & 3];
         sum += 0x9E3779B9; // const uint32_t delta;
         v1 += (v0 << 4 ^ v0 >> 5) + v0 ^ sum + key[sum >> 11 & 3];
     }
+    if (has_psid_key) {
+        for (int i = 0; i < 12; i++) { // DLC (20 rounds)
+            v0 += (v1 << 4 ^ v1 >> 5) + v1 ^ sum + key[sum & 3];
+            sum += 0x9E3779B9;
+            v1 += (v0 << 4 ^ v0 >> 5) + v0 ^ sum + key[sum >> 11 & 3];
+        }
+    }
 
     return (uint64_t)v1 << 32 | v0;
+}
+
+
+static uint32_t const *get_package_key(const uint64_t target_hdr) {
+    uint32_t iv = 0x00000000;
+
+    if (has_psid_key) {
+        if (get_xtea_xor_key(iv, drmkey) == target_hdr)
+            return drmkey;
+        print_warn(WARN_PKG_BAD_DRMKEY);
+        has_psid_key = false;
+    }
+    for (int i = 0; i < NUM_KEYS; i++) {
+        if (get_xtea_xor_key(iv, keys[i]) == target_hdr)
+            return keys[i];
+    }
+
+    return NULL;
 }
