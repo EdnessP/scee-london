@@ -1,6 +1,11 @@
-﻿// SCEE London Studio PS3 PACKAGE extractor   Written by Edness
-#define BUILDDATE "2024-07-13 - 2025-10-05"
+﻿// SCEE London Studio PS3 PACKAGE tool
+// Written by Edness   2024-07-13 - 2025-11-28
+
 #define VERSION "v1.4"
+#ifndef BUILDDATE
+    // shoudn't be an issue if you're using the provided build scripts
+    #error Please pre-define the current date in ISO 8601
+#endif
 
 #define _FILE_OFFSET_BITS 64
 #define _LARGEFILE64_SOURCE 1
@@ -15,8 +20,8 @@
 #include "defs.h"
 
 #include "decompress.h"
-#include "decrypt.h"
 #include "hash.h"
+#include "decrypt.h"
 #include "reader.h"
 
 #define ID_PACKAGE 0x204547414B434150
@@ -27,7 +32,7 @@
 
 
 static FILE *create_file(const path_t *base_path, uint8_t *file_path) {
-    path_t out_path[PATH_LEN];
+    path_t out_path[FILENAME_MAX];
     FILE *fp_out;
     int path_len;
     int i = 0;
@@ -38,18 +43,18 @@ static FILE *create_file(const path_t *base_path, uint8_t *file_path) {
         // PACKAGE filenames normally use backslashes
         while (file_path[i]) {
             if (file_path[i] == '\\')
-                file_path[i] = PATH_SEP;
+                file_path[i] = PATH_SEP_C;
             i++;
         }
         i = 0;
 #endif
-        path_len = snprintf_path(out_path, PATH_LEN, PATH_JOIN, base_path, file_path);
+        path_len = snprintf(out_path, FILENAME_MAX, "%s" PATH_SEP_S STR, base_path, file_path);
     }
     else {
-        path_len = snprintf_path(out_path, PATH_LEN, "%s", base_path); //strnlen_path;
+        path_len = snprintf(out_path, FILENAME_MAX, "%s", base_path); //strnlen;
     }
 
-    if (path_len < 0 || path_len >= PATH_LEN) { // swprintf returns -1 instead???
+    if (path_len < 0 || path_len >= FILENAME_MAX) { // swprintf returns -1 instead???
         print_err(ERR_PKG_PATH_LEN);
         return NULL;
     }
@@ -60,7 +65,7 @@ static FILE *create_file(const path_t *base_path, uint8_t *file_path) {
         if (is_path_sep(out_path[i])) {
             out_path[i] = '\x00';
             create_dir(out_path);
-            out_path[i] = PATH_SEP;
+            out_path[i] = PATH_SEP_C;
         }
         i++;
     }
@@ -81,16 +86,57 @@ static inline int64_t get_filesize(FILE *fp) {
 }
 
 
-static bool dump_package(pkg_t *pkg, const path_t *out_path) {
+static void endian_swap_keystore(uint32_t *keystore) {
+    //ks_t ks = {.c = keystore};
+    ks_t ks = {0}; ks.i = keystore;
+    // ensure it's in big endian, should be skipped from
+    // compiling on BE archs but i think it works anyway
+    for (int i = 0; i < KS_CHUNKS; i++)
+        ks.i[i] = get_32be(ks.c, i << 2);
+}
+
+
+static bool read_keystore(FILE *fp, uint32_t *keystore) {
+    // 0x100 keystore by EOF + 0x12 min PACKAGE header
+    if (get_filesize(fp) < 0x112)
+        return false;
+
+    fseek(fp, -(KS_CHUNKS << 2), SEEK_END);
+    //if (fread(keystore, 0x4, KS_CHUNKS, fp) != KS_CHUNKS)
+    if (!fread(keystore, KS_CHUNKS << 2, 1, fp))
+        return false;
+    endian_swap_keystore(keystore);
+
+    return true;
+}
+
+
+static bool write_keystore(FILE *fp, uint32_t *keystore) {
+
+    endian_swap_keystore(keystore);
+    //if (fwrite(keystore, 0x4, KS_CHUNKS, fp) != KS_CHUNKS)
+    if (!fwrite(keystore, KS_CHUNKS << 2, 1, fp)) {
+        print_err(ERR_PKG_FILE_WRITE);
+        return false;
+    }
+
+    return true;
+}
+
+
+static bool dump_package(pkg_t *pkg, drm_t *drm, const path_t *out_path) {
     int64_t size;
 
     pkg->fp_out = create_file(out_path, NULL);
     if (!pkg->fp_out) goto fail;
 
     size = get_filesize(pkg->fp_in);
-    if (has_psid_key) size -= 0x100;
+    if (pkg->is_dlc) size -= 0x100;
 
     if (!write_buffer(pkg, 0x0, size)) goto fail;
+
+    if (pkg->is_dlc && !write_keystore(pkg->fp_out, drm->keystore))
+        goto fail;
 
     fclose(pkg->fp_out);
     return true;
@@ -167,8 +213,9 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
     uint8_t *file_name = NULL;
     uint8_t _tmp[HDR_SIZE] = {0};
     buf_t tmp = {0}; tmp.c = _tmp;
+    //buf_t tmp = {.c = _tmp};
     uint32_t tmp_offs, tmp_size;
-    mz_stream mz = {0};
+    z_stream mz = {0};
 
     pkg->mz = &mz;
 
@@ -193,7 +240,7 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
         name_hash = read_32be(hdr.c, &hdr_offs);
         name_size = read_str(hdr.c, &hdr_offs, &file_name);
         //printf("%s = 0x%08X, jamcrc = 0x%08X\n", file_name, name_hash, crc32_jamcrc(file_name, name_size));
-        if (name_size < 1 || get_jamcrc_hash(file_name, name_size) != name_hash) {
+        if (name_size < 1 || crc32_jamcrc(file_name, name_size) != name_hash) {
             print_err(ERR_PKG_BAD_NAME);
             goto fail;
         }
@@ -214,7 +261,7 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
         // one small downside is if the output path is too long, you won't see
         // how long the filename is to try and guess how many dirs to go back.
         // (but like anyone is gonna do that, longest path seen is ~135 chars)
-        printf("[%3d%%] Extracting: %s\n", hdr_offs * 100 / hdr_size, file_name);
+        printf("[%3d%%] Extracting: " STR "\n", hdr_offs * 100 / hdr_size, file_name);
 
 
         /////////////////////////////////////////
@@ -229,8 +276,6 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
             if (!read_buffer(pkg, tmp.i, file_offs, tmp_size))
                 goto fail;
 
-            // this can work around the potential unaligned reads, but meh
-            // some testing showed there is either no or next to no impact
             //file_hdr = get_32be(tmp.c, file_offs);
             //if (file_hdr == 'ZLIB' || file_hdr == 'ERDA') { // -Wmultichar warning
             file_hdr = get_32le(tmp.c, tmp_offs);
@@ -242,7 +287,7 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
                     goto fail;
                 }
 
-                if (mz_inflate_init(&mz)) {
+                if (inflate_init(&mz)) {
                     print_err(ERR_ZLIB_INIT);
                     goto fail;
                 }
@@ -263,7 +308,8 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
                 tmp_size -= 0x8;
             }
             // dump from the buffer to avoid rereading the data twice
-            write_chunk(pkg, &tmp.c[tmp_offs], tmp_size);
+            if (!write_chunk(pkg, &tmp.c[tmp_offs], tmp_size))
+                goto fail;
             file_offs += tmp_size;
             file_size -= tmp_size;
         }
@@ -275,7 +321,7 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
                 print_err(ERR_ZLIB_DECOMPRESS);
                 goto fail;
             }
-            mz_inflate_end(&mz);
+            inflate_end(&mz);
         }
         fclose(pkg->fp_out);
     }
@@ -289,14 +335,14 @@ fail:
     if (pkg->fp_out)
         fclose(pkg->fp_out);
     if (pkg->compressed)
-        mz_inflate_end(&mz);
+        inflate_end(&mz);
     free(hdr.c);
     free(mz_buf);
     return false;
 }
 
 
-static bool read_package(FILE *fp_in, const path_t *out_path, const bool dump_only) {
+static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const bool dump_only) {
     uint64_t target_hdr = ID_PACKAGE;
     pkg_t pkg = {0};
 
@@ -309,53 +355,73 @@ static bool read_package(FILE *fp_in, const path_t *out_path, const bool dump_on
 
     pkg.encrypted = (pkg.xor != target_hdr);
 
-    // assigning the correct key pointer avoids it having
-    // to calculate the pointer on each read+decrypt call
+    if (drm->is_dlc && !read_keystore(fp_in, drm->keystore)) {
+        print_warn(WARN_PKG_BAD_DRM_KS);
+        drm->is_dlc = false;
+    }
+
     if (pkg.encrypted) {
-        if (has_psid_key) {
-            // read last 256 bytes of the file, attempt to
-            // decrypt and derive the final pkd keystore
-            //has_psid_key = false; // fail
+        if (drm->is_dlc && !decrypt_keystore(drm)) {
+            print_warn(WARN_PKG_BAD_DRM_KS);
+            drm->is_dlc = false;
         }
 
         target_hdr ^= pkg.xor;
-        pkg.key = get_package_key(target_hdr);
+        pkg.key = get_package_key(drm, target_hdr);
         if (pkg.key == NULL) {
             print_err(ERR_PKG_KEY_UNKNOWN);
             return false;
         }
     }
+    else if (drm->is_dlc && !encrypt_keystore(drm)) {
+        print_warn(WARN_PKG_BAD_DRM_KS);
+        drm->is_dlc = false;
+    }
+
+    pkg.is_dlc = drm->is_dlc;
 
     return dump_only
-        ? dump_package(&pkg, out_path)
+        ? dump_package(&pkg, drm, out_path)
         : extract_package(&pkg, out_path);
 }
 
 
-static void print_err_usage(const char *msg) {
-    printf(
-        "Usage:  ." HELP_PATH_SEP "scee_london  \"" HELP_USAGE_IN "\"  [options]\n"
-        "Options:\n"
-        "   -o | --output  <str>  \"" HELP_USAGE_OUT "\"\n"
-        "   -k | --drmkey  <str>  0123456789ABCDEF0123456789ABCDEF\n"
-        "   -d | --dump           Only decrypt or encrypt PACKAGE file\n"
-    );
-    print_err(msg);
-}
-
+// this used to get inlined all the time anyway, when it was a standalone function
+// (now it's a macro to allow for automatically converting it to wchar on windows)
+#define print_err_usage(msg) MACRO( \
+    printf( \
+        "Usage:  ." PATH_SEP_S "scee_london  \"" HELP_USAGE_IN "\"  [options]\n" \
+        "Options:\n" \
+        "   -o | --output  <str>  \"" HELP_USAGE_OUT "\"\n" \
+        "   -k | --drmkey  <str>  0123456789ABCDEF0123456789ABCDEF\n" \
+        "   -d | --dump           Only decrypt or encrypt PACKAGE file\n" \
+    ); \
+    print_err(msg); \
+)
 
 int main(int argc, path_t **argv) {
+    path_t abs_path[FILENAME_MAX];
+    path_t out_path[FILENAME_MAX];
     FILE *fp_in = NULL;
-    path_t abs_path[PATH_LEN];
-    path_t out_path[PATH_LEN];
+    drm_t drm = {0};
 
     bool has_out_path = false, dump_only = false;
 
+#if IS_WINDOWS //#include <io.h>
+    // huh, apparently _O_U8TEXT also just works? i thought wprintf
+    // would only work properly with _O_U16TEXT for the final path.
+    // HOWEVER wprintf is now no longer line buffered and looks bad
+    (void)_setmode(_fileno(stdout), _O_WTEXT);
+    (void)_setmode(_fileno(stderr), _O_WTEXT);
+    // WriteConsoleW does still remain line buffered, but that's such
+    // a braindead way to print anything it's not even worth using it
+#endif
+
 
     printf(
-        "SCEE London Studio PACKAGE extractor\n"
+        "SCEE London Studio PACKAGE tool\n"
         "Written by Edness   " VERSION "\n"
-        BUILDDATE "\n\n"
+        "2024-07-13 - " BUILDDATE "\n\n"
     );
 
 
@@ -381,25 +447,25 @@ int main(int argc, path_t **argv) {
             const path_t *path = argv[++i];
 
             // it'll fail if it's too long during the extraction process
-            if (i >= argc || strnlen_path(path, PATH_LEN) <= 0) {
+            if (i >= argc || strnlen(path, FILENAME_MAX) <= 0) {
                 print_err_usage(ERR_BAD_ARG_OUT_PATH);
                 goto fail;
             }
 
-            snprintf_path(out_path, PATH_LEN, "%s", path);
+            snprintf(out_path, FILENAME_MAX, "%s", path);
             has_out_path = true;
         }
         else if (is_opt_arg(argv[i], "--drmkey", "-k")) {
             const path_t *key = argv[++i];
 
             // todo: allow longer inputs, filter out spaces
-            if (i >= argc || strnlen_path(key, 0x21) != 0x20) {
+            if (i >= argc || strnlen(key, 0x21) != 0x20) {
                 print_err_usage(ERR_BAD_ARG_DRMKEY);
                 goto fail;
             }
 
             for (int j = 0; j < 4; j++) {
-                //sscanf_path(key, "%08X", &psid[j]);
+                //sscanf(key, "%08X", &psid[j]);
                 uint32_t segment = 0x00000000;
 
                 for (int k = j * 8; k < j * 8 + 8; k++) {
@@ -419,20 +485,28 @@ int main(int argc, path_t **argv) {
                     segment <<= 4;
                     segment |= nybble;
                 }
-                psid[j] = segment;
+                drm.psid[j] = segment;
                 //printf("psid[%d] = 0x%08X\n", j, psid[j]);
             }
-            has_psid_key = true;
+            drm.is_dlc = true;
         }
         else {
-            // wanted to do %s - args[i], but this is too jankily made
             print_err_usage(ERR_BAD_ARGS);
+            // jank, doesn't go to stderr and perror puts extra stuff
+            // (all the argless printfs get optimised to puts anyway)
+            puts(argv[i]);
+            //fputs(argv[i], stderr);
+            //fputs(u("\n"), stderr);
             goto fail;
         }
     }
 
-    if (!has_out_path)
-        snprintf_path(out_path, PATH_LEN, "%s_out", argv[1]);
+    if (!has_out_path) {
+        //snprintf(out_path, FILENAME_MAX, dump_only ? "%s.dmp" : "%s_out", argv[1]);
+        dump_only // would've preferred the above, but whatever (windows redefs jank)
+            ? snprintf(out_path, FILENAME_MAX, "%s.dmp", argv[1])
+            : snprintf(out_path, FILENAME_MAX, "%s_out", argv[1]);
+    }
 
     // due to linux/posix shenanigans, the initial absolute path has to be pregenerated here
     // because unlike windows, i can't easily generate a proper canonical path. if there are
@@ -442,12 +516,14 @@ int main(int argc, path_t **argv) {
 
     // this printf just prevents a triple-newline if it fails before extracting anything lol
     printf("Reading PACKAGE file...\n");
-    if (!read_package(fp_in, abs_path, dump_only))
+    if (!read_package(&drm, fp_in, abs_path, dump_only))
         goto fail;
 
-    // this still prints question marks on windows, but w/e
-    printf_path("\nDone! Output written to %s\n", abs_path);
-    //WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), abs_path, PATH_LEN, &a, NULL);
+    //path_t print_buf[FILENAME_MAX];
+    //int print_len = snprintf(print_buf, FILENAME_MAX, "\nDone! Output written to %s\n", abs_path));
+    //WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), print_buf, print_len, NULL, NULL);
+    printf("\nDone! Output written to %s\n", abs_path);
+
     fclose(fp_in);
     return 0;
 
@@ -458,7 +534,9 @@ fail:
     // user might've drag-dropped it on the .EXE and thus won't see the error
     printf("\nPress any key to continue...\n");
     // the C standard getchar() also doesn't behave quite the same as getch()
-    while (!_getch());
+    while (!_getch()); //#include <conio.h>
 #endif
     return -1;
 }
+
+#undef print_err_usage

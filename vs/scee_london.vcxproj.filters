@@ -37,6 +37,15 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\src\BigDigits\bigdigits.c">
+      <Filter>Libraries</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\BigDigits\bigdigits.h">
+      <Filter>Libraries</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\BigDigits\bigdtypes.h">
+      <Filter>Libraries</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\miniz\miniz.c">
       <Filter>Libraries</Filter>
     </ClInclude>

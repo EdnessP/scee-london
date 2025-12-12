@@ -1,22 +1,26 @@
-// Written by Edness   2024-09-17 - 2025-10-05
+// Written by Edness   2024-09-17 - 2025-10-08
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
 
-#define MINIZ_NO_ARCHIVE_APIS
-#define MINIZ_NO_ARCHIVE_WRITING_APIS
-#define MINIZ_NO_DEFLATE_APIS
-#define MINIZ_NO_STDIO
-#define MINIZ_NO_TIME
+//#if defined(__APPLE__)
+//    #include <zlib.h>
+//#else
+    #define MINIZ_NO_ARCHIVE_APIS
+    #define MINIZ_NO_ARCHIVE_WRITING_APIS
+    #define MINIZ_NO_DEFLATE_APIS
+    #define MINIZ_NO_STDIO
+    #define MINIZ_NO_TIME
 
-#define MINIZ_HAS_64BIT_REGISTERS 1
-#define MINIZ_LITTLE_ENDIAN 1
-#if defined(__x86_64__) || defined(__amd64__) || defined(_M_X64) || defined(_M_AMD64)
-    #define MINIZ_USE_UNALIGNED_LOADS_AND_STORES 1
-#endif
+    #define MINIZ_HAS_64BIT_REGISTERS 1
+    #define MINIZ_LITTLE_ENDIAN 1
+    #if defined(__x86_64__) || defined(__amd64__) || defined(_M_X64) || defined(_M_AMD64)
+        #define MINIZ_USE_UNALIGNED_LOADS_AND_STORES 1
+    #endif
 
-#include "miniz/miniz.h"
-#include "miniz/miniz.c"
+    #include "miniz/miniz.h"
+    #include "miniz/miniz.c"
+//#endif
 
 
 // extreme upper bound - 0x10*0x408, per Mark Adler here https://stackoverflow.com/questions/26922482/
@@ -25,13 +29,13 @@
 // seems to be caused by unaligned chunks, flushing the previous constant byte stream along a new one?
 #define MAX_DEC_SIZE 0x4080
 
-// snake_case miniz func defs because muh ocd /s
-#define mz_inflate_init mz_inflateInit
-//#define mz_inflate_reset mz_inflateReset
-#define mz_inflate_end mz_inflateEnd
+// snake_case zlib func defs because muh ocd /s
+#define inflate_init inflateInit
+//#define inflate_reset inflateReset
+#define inflate_end inflateEnd
 
 
-static bool decompress_chunk(mz_stream *mz, uint8_t **buf, uint32_t *size) {
+static bool decompress_chunk(z_stream *mz, uint8_t **buf, uint32_t *size) {
     //uint8_t *buf = *in_buf;
     //uint32_t size = *in_size;
 
@@ -39,7 +43,7 @@ static bool decompress_chunk(mz_stream *mz, uint8_t **buf, uint32_t *size) {
     mz->avail_in = *size;
     // the zlib streams have intentionally corrupt footers
     // by SCEE but those shouldn't raise these errors here
-    if (mz_inflate(mz, MZ_NO_FLUSH) < MZ_OK) {
+    if (inflate(mz, Z_NO_FLUSH) < Z_OK) {
         print_err(ERR_ZLIB_DECOMPRESS);
         return false;
     }

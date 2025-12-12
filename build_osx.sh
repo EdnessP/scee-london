@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-if [[ $1 == darling ]]; then # building from linux (see post_build.sh)
+if [[ $1 == darling ]]; then # building from linux (see build_all.sh)
     # point to the Xcode libs, xcode-select doesn't properly work with the full version
     xcode_lib=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
     xcode_bin=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain
@@ -15,7 +15,7 @@ mkdir -p ./out/macos
 # except it isn't ignored and clearly does strip symbols
 # even though codegen was virtually identical between 10.6 and 10.16 (11)
 # building without macosx-version-min gave Illegal instruction: 4 on 10.7
-clang -arch arm64 -arch x86_64 -s -DNDEBUG -Ofast -flto -mmacosx-version-min=10.6 -Wno-nullability-completeness -o ./out/macos/scee_london ./src/scee_london.c
+clang -arch arm64 -arch x86_64 -s -DBUILDDATE="\"$(date -u +%Y-%m-%d)\"" -DNDEBUG -Ofast -flto -mmacosx-version-min=10.6 -Wno-nullability-completeness -o ./out/macos/scee_london ./src/scee_london.c
 # no-nullability-completeness because Xcode 12.5.1 has a billion of them
 if ! [[ $1 == darling ]]; then
     echo "Done! Output written to ./out/macos" # $(realpath "./out/macos")

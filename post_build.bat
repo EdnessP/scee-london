@@ -5,4 +5,4 @@ rem python -c "__import__('shutil').make_archive('..\\scee_london', 'zip', '..\\
 
 rem # why didn't i think of this earlier?
 cd ..
-wsl ./post_build.sh
+wsl ./build_all.sh msvc

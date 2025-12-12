@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-29 - 2025-10-05
+// Written by Edness   2024-07-29 - 2025-11-28
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
@@ -11,11 +11,13 @@ typedef struct {
     FILE *fp_out;
 
     bool encrypted;
+    bool is_dlc;
     uint32_t const *key;
     uint32_t iv;
+    //drm_t *drm; // only used for pkg->drm->is_dlc
 
     bool compressed;
-    mz_stream *mz;
+    z_stream *mz;
 
     union {
         uint64_t xor;
@@ -28,6 +30,11 @@ typedef union {
     uint8_t *c;
 } buf_t;
 
+typedef union {
+    uint32_t *i;
+    uint8_t *c;
+} ks_t;
+
 
 //////////////////
 // FILE READERS //
@@ -39,8 +46,8 @@ static inline bool read_chunk(pkg_t *pkg, uint8_t *buf, const uint8_t size) {
         print_err(ERR_PKG_FILE_READ);
         return false;
     }
-    if (pkg->encrypted)
-        pkg->xor ^= get_xtea_xor_key(pkg->iv, pkg->key);
+    if (pkg->encrypted) // TODO: not safe for Big Endian
+        pkg->xor ^= get_xtea_xor_key(pkg->iv, pkg->key, pkg->is_dlc);
 
     return true;
 }
@@ -65,13 +72,13 @@ static inline bool write_chunk(pkg_t *pkg, uint8_t *buf, uint32_t size) {
 // read chunks to buffer; if buf is nonexistent, write to fp_out
 #define write_buffer(pkg, offs, size) read_buffer(pkg, NULL, offs, size)
 
-#define __read_write_buffer(pkg_buf, size) MACRO ( \
+#define __read_write_buffer(pkg_buf, size) MACRO( \
     if (!read_chunk(pkg, pkg_buf, size)) return false; \
     if (buf) buf[i++] = pkg->xor; \
     else if (!write_chunk(pkg, pkg_buf, size)) return false; \
 )
 
-static bool read_buffer(pkg_t* pkg, uint64_t* buf, uint64_t offs, uint64_t size) {
+static bool read_buffer(pkg_t *pkg, uint64_t *buf, uint64_t offs, uint64_t size) {
     uint8_t start_skip, start_read, end_read;
     uint32_t /*start_chunk,*/ end_chunk;
     uint64_t /*start_offs,*/ end_offs;
@@ -123,6 +130,8 @@ static bool read_buffer(pkg_t* pkg, uint64_t* buf, uint64_t offs, uint64_t size)
 
     return true;
 }
+
+#undef __read_write_buffer
 
 
 ////////////////////

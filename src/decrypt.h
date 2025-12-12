@@ -1,42 +1,49 @@
-// Written by Edness   2024-07-13 - 2025-10-05
+// Written by Edness   2024-07-13 - 2025-12-12
 #pragma once
 #include <stdint.h>
+#include <stdbool.h>
 
-#define NUM_KEYS sizeof(keys) / sizeof(keys[0])
+#define NO_ALLOCS
+#define HAVE_C99INCLUDES
+#define MAX_FIXED_BIT_LENGTH 2048
 
-
-/* Keystore derivation process information, researched from the
-function at 00086094 in the Polish release of SingStar Ultimate Party
-
-A 0x100 byte keystore is loaded either from the EBOOT.BIN, or from keys.edat
-Each block is 0x200 bytes long, the lower 0x100 of them being the actual key
-It's treated as an array of 64 x 32-bit integers, and it gets endian swapped
-
-??? TODO // first decrypt/derive step to new 0x100 keystore block ???
-
-Still treated as an array of 64 x 32-bit integers, and the array is reversed
-That block is then decrypted, and from the result of that, starting with the
-data at 0xB4 of the decrypted block, the final PKD key is eventually derived
-*/
+#include "BigDigits/bigdigits.h"
+#include "BigDigits/bigdigits.c"
 
 
+#define KS_CHUNKS 0x40
+#define ID_SDRM 0x5344524D
+
+#define PKG_KEYS sizeof(drm_keys) / sizeof(drm_keys[0])
+
+#define rsa_sign(msg, key, exp) mpModExp(msg, msg, exp, key, KS_CHUNKS)
+#define rsa_verify(msg, key, exp) mpModExp(msg, msg, exp, key, KS_CHUNKS)
+
+typedef struct {
+    uint32_t psid[4]; // OpenPSID keystore key
+    uint32_t drm_key[4]; // final .PKG.DRM key
+    uint32_t keystore[KS_CHUNKS];
+    bool is_dlc;
+} drm_t;
 
 
-/*
-union {
-    uint32_t key[4];
-    uint8_t buf[16];
-} psid;
-*/
-
-static bool has_psid_key = false;
-static uint32_t psid[4] =
-    {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}; // DLC keystore
-static uint32_t drmkey[4] =
-    {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}; // SingStore DRM
+// keys.edat normally contains 3 public keys (e = 65537)
+// but only this one is used for DRM keystore decryption
+// (however it does on some rare occasions switch to the
+// 2nd public key in keys.edat observed while debugging)
+static uint32_t rsa_pub_key[KS_CHUNKS] = { // not const because BigDigits mpShiftLeft will segfault
+    0xD9425983, 0x0B4C6BB4, 0x740B4B22, 0xD8708CD5, 0xBC7C7341, 0x2B4EC341, 0xD9E6EF17, 0x92944487,
+    0xB52A19BA, 0xD1EA4FAE, 0x9AD37F15, 0x482706F5, 0x0843D556, 0xE4DFF9D6, 0x9C8A19FC, 0x67D89622,
+    0xA58B42DB, 0xCE562145, 0x5E6CFB4A, 0xA292E651, 0xD7955EDE, 0xA8C552EF, 0xDE2B8957, 0x27E37927,
+    0x17E113E7, 0xB542999F, 0x024E2E2D, 0xBD57FA8F, 0x63BBDB15, 0x6DBF1FB0, 0xBF7BD7BB, 0xDA3C9C16,
+    0x84B40979, 0xB84E6BDE, 0xFC640D39, 0xEF92F957, 0xF27B3E1B, 0x5E6F06B4, 0xDF2084BF, 0xC3F6395C,
+    0x0E453F99, 0xAE6913B0, 0x7653A391, 0x2FEA1729, 0x83DD5F2E, 0x451C236D, 0x27E8072D, 0xCAD467DA,
+    0xDA8A044E, 0xCD9D8C51, 0xCF0DB3BE, 0xBE32F500, 0x8B24FD71, 0x0684F15F, 0x0D146D06, 0x74EF64D8,
+    0xA77C5D37, 0x1952BC1E, 0x246815D1, 0x5CFBB71E, 0x14E8BD44, 0xC09623F8, 0x14D2AE65, 0xDD3CFCF8
+};
 
 // Shout-out to the Redump.org community for making this possible
-static const uint32_t keys[][4] = {
+static const uint32_t drm_keys[][4] = {
     {0xE2AC48C5, 0x1C511D8E, 0x8158606D, 0x8086ED1D}, // SingStar (Europe) (Pack0.pkd)
     {0xD2229BCB, 0xE9D5207A, 0x88960EEB, 0x7A848797}, // SingStar (Europe) (Pack1.pkd)
     {0x283A57E8, 0x0AF6634E, 0x0EF89D6E, 0x91F4DBF6}, // SingStar (France) (Pack0.pkd)
@@ -154,48 +161,211 @@ static const uint32_t keys[][4] = {
 };
 
 
-//static inline void do_xtea_rounds(int rounds, uint32_t *v0, uint32_t *v1, uint32_t *sum) {}
-
 // PACKAGE uses a slightly "custom" implementation of XTEA encryption
 // using the block offset index as the IV with a constant first half,
 // encrypting that with XTEA, and using the result to XOR said block.
 // (v0 technically isn't hardcoded in the games but yk optimizations)
-static uint64_t get_xtea_xor_key(uint32_t v1, const uint32_t *key) {
+#define __do_xtea_rounds(rounds) MACRO( \
+    for (int i = 0; i < rounds; i++) { \
+        v0 += (v1 << 4 ^ v1 >> 5) + v1 ^ sum + key[sum & 3]; \
+        sum += 0x9E3779B9; /* const uint32_t delta; */ \
+        v1 += (v0 << 4 ^ v0 >> 5) + v0 ^ sum + key[sum >> 11 & 3]; \
+    } \
+)
+
+static uint64_t get_xtea_xor_key(uint32_t v1, const uint32_t *key, const bool is_dlc) {
     // Reimplemented from the function at 004C8454 in
     // the Polish release of SingStar: Ultimate Party
     uint32_t v0 = 0x12345678; // iv[0] const
     uint32_t sum = 0;
 
-    for (int i = 0; i < 8; i++) { // standard (8 rounds)
-        v0 += (v1 << 4 ^ v1 >> 5) + v1 ^ sum + key[sum & 3];
-        sum += 0x9E3779B9; // const uint32_t delta;
-        v1 += (v0 << 4 ^ v0 >> 5) + v0 ^ sum + key[sum >> 11 & 3];
-    }
-    if (has_psid_key) {
-        for (int i = 0; i < 12; i++) { // DLC (20 rounds)
-            v0 += (v1 << 4 ^ v1 >> 5) + v1 ^ sum + key[sum & 3];
-            sum += 0x9E3779B9;
-            v1 += (v0 << 4 ^ v0 >> 5) + v0 ^ sum + key[sum >> 11 & 3];
-        }
-    }
+    // compilers unroll these much more nicely this way
+    __do_xtea_rounds(8); // standard (8 rounds)
+    if (is_dlc)
+        __do_xtea_rounds(12); // DLC (20 rounds)
 
     return (uint64_t)v1 << 32 | v0;
 }
 
+#undef __do_xtea_rounds
 
-static uint32_t const *get_package_key(const uint64_t target_hdr) {
-    uint32_t iv = 0x00000000;
 
-    if (has_psid_key) {
-        if (get_xtea_xor_key(iv, drmkey) == target_hdr)
-            return drmkey;
+static uint32_t const *get_package_key(drm_t *drm, const uint64_t target_hdr) {
+
+    if (drm->is_dlc) {
+        if (get_xtea_xor_key(0, drm->drm_key, true) == target_hdr)
+            return drm->drm_key;
         print_warn(WARN_PKG_BAD_DRMKEY);
-        has_psid_key = false;
+        drm->is_dlc = false;
     }
-    for (int i = 0; i < NUM_KEYS; i++) {
-        if (get_xtea_xor_key(iv, keys[i]) == target_hdr)
-            return keys[i];
+    for (int i = 0; i < PKG_KEYS; i++) {
+        if (get_xtea_xor_key(0, drm_keys[i], false) == target_hdr)
+            return drm_keys[i];
     }
 
     return NULL;
+}
+
+
+static void reverse_keystore(uint32_t *keystore) {
+    for (int i = 0; i < KS_CHUNKS / 2; i++) {
+        int o = (KS_CHUNKS - 1 - i); // i opposite
+        uint32_t ks_tmp = keystore[o];
+        keystore[o] = keystore[i];
+        keystore[i] = ks_tmp;
+    }
+}
+
+
+static inline uint32_t bswap(uint32_t num) {
+    return num >> 24 | num >> 8 & 0xFF00 | (num & 0xFF00) << 8 | (num & 0xFF) << 24;
+}
+
+
+// I eventually realised the BigDigits library that I had around was
+// ancient and the latest ver properly handles them in 32-bit values
+/*
+#define __multiply64_32(x, y) MACRO( \
+    tmp_mul = (uint64_t)x * y; \
+    mul_lower = tmp_mul & 0xFFFFFFFF; \
+    mul_upper = tmp_mul >> 32; \
+)
+// I couldn't find a plain multi-precision arithmetic library or an
+// RSA/crypto library which isn't overly bloated and worked with 32
+// bit values out of the box.  SCEE used BigDigits by David Ireland
+// but it uses unsigned long for DIGITS_T, which is 64-bit on POSIX
+// while still 32-bit on Windows, and I really didn't want to screw
+// with that.  So instead, here's my simplified RE'd implementation
+static inline void rsa_modular_multiply(uint32_t *keystore, const uint32_t *ks_dec) {
+    uint32_t ks_exp[KS_CHUNKS * 2] = {0};
+    uint32_t ks_tmp[KS_CHUNKS] = {0};
+    // could make this a union but BE
+    // arch indices would be inverted
+    uint32_t mul_upper, mul_lower;
+    uint64_t tmp_mul;
+
+    // multiply keystore blocks together
+    for (int i = 0; i < KS_CHUNKS; i++) {
+        // skip initial null chunks
+        while (i < KS_CHUNKS && !ks_dec[i])
+            ks_exp[KS_CHUNKS + i++] = 0x00000000;
+        if (i >= KS_CHUNKS) break;
+
+        uint32_t prev = 0, idx = i;
+        for (int j = 0; j < KS_CHUNKS; j++) {
+            __multiply64_32(keystore[j], ks_dec[i]);
+            if (mul_lower + prev < prev) mul_upper++;
+            mul_lower += prev + ks_exp[idx];
+            if (mul_lower < ks_exp[idx]) mul_upper++;
+            ks_exp[idx++] = mul_lower;
+            prev = mul_upper;
+        }
+        ks_exp[KS_CHUNKS + i] = mul_upper;
+    }
+
+    // modulo result w/ key
+}
+#undef __multiply64_32
+*/
+
+
+static bool decrypt_keystore(drm_t *drm) {
+    // Reimplemented from the functions at 004BF144 and
+    // 004BFC58 in the Polish release of Ultimate Party
+
+    // skip RSA decryption if it was only dumped reencrypted with without signing
+    if (drm->keystore[0x3F] != ID_SDRM) {
+        uint32_t exponent[KS_CHUNKS] = {0x10001};
+
+        reverse_keystore(drm->keystore);
+
+        //memcpy(ks_orig, keystore, KS_CHUNKS * 0x4);
+        //for (int i = 0; i < 16; i++)
+        //    rsa_modular_multiply(keystore, keystore);
+        //rsa_modular_multiply(keystore, ks_orig);
+
+        // verify (decrypt) signed keystore
+        rsa_verify(drm->keystore, rsa_pub_key, exponent);
+
+        // should have an SDRM header id if successfully decrypted (validated later)
+        //if (keystore[0x00] != ID_SDRM || keystore[0x13] || keystore[0x3F])
+        //    return false;
+        reverse_keystore(drm->keystore);
+    }
+
+    // 0x00~0x04: 0x00000000
+    // 0x04~0x5F: unk (file hash?) (technically starts at 0x02?)
+    // 0x5F~0x60: 0x14 (XTEA rounds? 0x00 for pkd keystores)
+    // 0x60~0x74: wraparound SHA-1 of 0x74~0x60 (0x74~0x100 + 0x00~0x60)
+    // 0x74~0x84: F33964A9 46BD983F 6B1B6306 73E79E0B (XTEA key related?)
+    // 0x84~0x98: SHA-1 of some user data? (PSN name/id probably? there is a function for that)
+    // 0x98~0x9C: 0301FF01 (first byte 0x03 is used for some drmkey decryption state?)
+    // 0x9C~0xB0: zero length SHA-1 of some user data? DA39A3EE5E6B4B0D3255BFEF95601890AFD80709
+    // 0xB0~0xB4: 0x00000000
+    // 0xB4~0xC4: encrypted XTEA key
+    // 0xC4~0xD8: SHA-1 of the PSID (blank for pkd keystores)
+    // 0xD8~0xE8: 5D4C6E15 44015809 AC35AC16 575FC123 (XTEA key related?)
+    // 0xE8~0xF8: ECD56806 BA777B7F 685A55ED 78114B9A (XTEA key related?)
+    // 0xF8~0xFC: 00FE0601 (version? v01.06, -512?)
+    // 0xFC~x100: SDRM
+    sha_t sha;
+    uint32_t psid_hash[5];
+
+    // is 0x3E keystore version? (v1.06 -512?) the game has code for various versions but only
+    // v1.06 is ever used? <1.00 (00xxA000), 1.00 (0100A000), 1.05 (0105FE00), 1.06 (0106FE00)
+    if (drm->keystore[0x3F] != ID_SDRM || drm->keystore[0x3E] != 0x00FE0601 || drm->keystore[0x2C] || drm->keystore[0x00])
+        return false;
+
+    // verify SHA-1 of the whole keystore block (v1.06)
+    sha1_init(&sha);
+    sha1_update(&sha, &drm->keystore[0x1D], 0x23); // 0x74~x100 (0x8C bytes)
+    sha1_update(&sha, &drm->keystore[0x00], 0x18); // 0x00~0x60 (0x60 bytes)
+    sha1_end(&sha);
+    if (!sha1_compare(&sha, &drm->keystore[0x18])) // 0x60~0x74
+        return false;
+
+    // verify SHA-1 of the PSID (all 0 if not signed to a specific system, however this shouldn't occur)
+    // (also of note is a later function that derives the final XTEA key checks if this isn't -1 either)
+    if (!drm->keystore[0x31] && !drm->keystore[0x32] && !drm->keystore[0x33] && !drm->keystore[0x34] && !drm->keystore[0x35])
+        return false;
+
+    sha1(&sha, drm->psid, 0x4); // PSID hash is used for XTEA key decryption
+    sha1_copy(&sha, psid_hash);
+    // hashes the result again for v0.05+ (not v1.05+, typo/bug?)
+    sha1(&sha, sha.hash, 0x5); // PSID hash-hash is used for KS verification
+    if (!sha1_compare(&sha, &drm->keystore[0x31])) // 0xC4~0xD8
+        return false;
+
+    // it then hashes something of zero length and i'm not sure what it is
+    // but since the keystores have a seemingly constant zero length SHA-1
+    // at 0x9C [0x27], might as well just use that (and hope for the best)
+    sha1_init(&sha);
+    sha1_update(&sha, psid_hash, 0x5);
+    sha1_update(&sha, &drm->keystore[0x27], 0x5);
+    sha1_end(&sha);
+    // result is used to decrypt the final XTEA key
+    drm->drm_key[0] = bswap(drm->keystore[0x2D] ^ sha.hash[0]);
+    drm->drm_key[1] = bswap(drm->keystore[0x2E] ^ sha.hash[1]);
+    drm->drm_key[2] = bswap(drm->keystore[0x2F] ^ sha.hash[2]);
+    drm->drm_key[3] = bswap(drm->keystore[0x30] ^ sha.hash[3]);
+
+    return true;
+}
+
+
+static bool encrypt_keystore(drm_t *drm) {
+
+    //if (!encrypt_drm_key(drm->keystore, drm->psid))
+    //    return false;
+
+    print_warn(WARN_PKG_KS_ENCRYPT);
+
+    // the original private key is unlikely to ever be discovered
+    // so instead maybe create our own RSA priv/pub key pairs and
+    // patch them into keys.edat? requires resigning all DLC then
+    //reverse_keystore(keystore);
+    //rsa_sign(keystore, rsa_priv_key, rsa_priv_exp);
+    //reverse_keystore(keystore);
+
+    return true;
 }
