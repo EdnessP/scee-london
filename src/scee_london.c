@@ -88,7 +88,7 @@ static inline int64_t get_filesize(FILE *fp) {
 
 static void endian_swap_keystore(uint32_t *keystore) {
     //ks_t ks = {.c = keystore};
-    ks_t ks = {0}; ks.i = keystore;
+    ks_t ks = {NULL}; ks.i = keystore;
     // ensure it's in big endian, should be skipped from
     // compiling on BE archs but i think it works anyway
     for (int i = 0; i < KS_CHUNKS; i++)
@@ -159,7 +159,7 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
     uint16_t flags;
     uint32_t hdr_size, hdr_align, hdr_offs;
 
-    buf_t hdr = {0};
+    buf_t hdr = {NULL};
     uint8_t *_hdr = NULL;
     uint8_t *mz_buf = NULL;
 
@@ -218,7 +218,7 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
     ////////////////
     uint8_t *file_name = NULL;
     uint8_t _tmp[HDR_SIZE] = {0};
-    buf_t tmp = {0}; tmp.c = _tmp;
+    buf_t tmp = {NULL}; tmp.c = _tmp;
     //buf_t tmp = {.c = _tmp};
     uint32_t tmp_offs, tmp_size;
     z_stream mz = {0};
