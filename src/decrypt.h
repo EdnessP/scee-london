@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-13 - 2025-12-12
+// Written by Edness   2024-07-13 - 2025-12-13
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
@@ -7,14 +7,12 @@
 #define HAVE_C99INCLUDES
 #define MAX_FIXED_BIT_LENGTH 2048
 
-#include "BigDigits/bigdigits.h"
-#include "BigDigits/bigdigits.c"
+#include "bigdigits/bigdigits.h"
+#include "bigdigits/bigdigits.c"
 
 
 #define KS_CHUNKS 0x40
 #define ID_SDRM 0x5344524D
-
-#define PKG_KEYS sizeof(drm_keys) / sizeof(drm_keys[0])
 
 #define rsa_sign(msg, key, exp) mpModExp(msg, msg, exp, key, KS_CHUNKS)
 #define rsa_verify(msg, key, exp) mpModExp(msg, msg, exp, key, KS_CHUNKS)
@@ -196,14 +194,23 @@ static uint32_t const *get_package_key(drm_t *drm, const uint64_t target_hdr) {
         if (get_xtea_xor_key(0, drm->drm_key, true) == target_hdr)
             return drm->drm_key;
         print_warn(WARN_PKG_BAD_DRMKEY);
-        drm->is_dlc = false;
+        // maybe return NULL here already?
     }
-    for (int i = 0; i < PKG_KEYS; i++) {
+    for (int i = 0; i < arrlen(drm_keys); i++) {
         if (get_xtea_xor_key(0, drm_keys[i], false) == target_hdr)
             return drm_keys[i];
     }
 
     return NULL;
+}
+
+
+// purely to not have to copy the same thing over and over again
+static inline void hash_keystore(sha_t *sha, uint32_t *keystore) {
+    sha1_init(sha);
+    sha1_update(sha, &keystore[0x1D], 0x23); // 0x74~x100 (0x8C bytes)
+    sha1_update(sha, &keystore[0x00], 0x18); // 0x00~0x60 (0x60 bytes)
+    sha1_end(sha);
 }
 
 
@@ -214,11 +221,6 @@ static void reverse_keystore(uint32_t *keystore) {
         keystore[o] = keystore[i];
         keystore[i] = ks_tmp;
     }
-}
-
-
-static inline uint32_t bswap(uint32_t num) {
-    return num >> 24 | num >> 8 & 0xFF00 | (num & 0xFF00) << 8 | (num & 0xFF) << 24;
 }
 
 
@@ -273,7 +275,7 @@ static bool decrypt_keystore(drm_t *drm) {
     // Reimplemented from the functions at 004BF144 and
     // 004BFC58 in the Polish release of Ultimate Party
 
-    // skip RSA decryption if it was only dumped reencrypted with without signing
+    // skip RSA decryption if it was only dumped reencrypted without signing
     if (drm->keystore[0x3F] != ID_SDRM) {
         uint32_t exponent[KS_CHUNKS] = {0x10001};
 
@@ -298,7 +300,7 @@ static bool decrypt_keystore(drm_t *drm) {
     // 0x5F~0x60: 0x14 (XTEA rounds? 0x00 for pkd keystores)
     // 0x60~0x74: wraparound SHA-1 of 0x74~0x60 (0x74~0x100 + 0x00~0x60)
     // 0x74~0x84: F33964A9 46BD983F 6B1B6306 73E79E0B (XTEA key related?)
-    // 0x84~0x98: SHA-1 of some user data? (PSN name/id probably? there is a function for that)
+    // 0x84~0x98: SHA-1 related to the decrypted XTEA key? or encrypted file hash?
     // 0x98~0x9C: 0301FF01 (first byte 0x03 is used for some drmkey decryption state?)
     // 0x9C~0xB0: zero length SHA-1 of some user data? DA39A3EE5E6B4B0D3255BFEF95601890AFD80709
     // 0xB0~0xB4: 0x00000000
@@ -308,8 +310,8 @@ static bool decrypt_keystore(drm_t *drm) {
     // 0xE8~0xF8: ECD56806 BA777B7F 685A55ED 78114B9A (XTEA key related?)
     // 0xF8~0xFC: 00FE0601 (version? v01.06, -512?)
     // 0xFC~x100: SDRM
-    sha_t sha;
     uint32_t psid_hash[5];
+    sha_t sha;
 
     // is 0x3E keystore version? (v1.06 -512?) the game has code for various versions but only
     // v1.06 is ever used? <1.00 (00xxA000), 1.00 (0100A000), 1.05 (0105FE00), 1.06 (0106FE00)
@@ -317,10 +319,7 @@ static bool decrypt_keystore(drm_t *drm) {
         return false;
 
     // verify SHA-1 of the whole keystore block (v1.06)
-    sha1_init(&sha);
-    sha1_update(&sha, &drm->keystore[0x1D], 0x23); // 0x74~x100 (0x8C bytes)
-    sha1_update(&sha, &drm->keystore[0x00], 0x18); // 0x00~0x60 (0x60 bytes)
-    sha1_end(&sha);
+    hash_keystore(&sha, drm->keystore);
     if (!sha1_compare(&sha, &drm->keystore[0x18])) // 0x60~0x74
         return false;
 
@@ -332,7 +331,7 @@ static bool decrypt_keystore(drm_t *drm) {
     sha1(&sha, drm->psid, 0x4); // PSID hash is used for XTEA key decryption
     sha1_copy(&sha, psid_hash);
     // hashes the result again for v0.05+ (not v1.05+, typo/bug?)
-    sha1(&sha, sha.hash, 0x5); // PSID hash-hash is used for KS verification
+    sha1(&sha, psid_hash, 0x5); // PSID hash-hash is stored in the keystore
     if (!sha1_compare(&sha, &drm->keystore[0x31])) // 0xC4~0xD8
         return false;
 
@@ -343,29 +342,85 @@ static bool decrypt_keystore(drm_t *drm) {
     sha1_update(&sha, psid_hash, 0x5);
     sha1_update(&sha, &drm->keystore[0x27], 0x5);
     sha1_end(&sha);
-    // result is used to decrypt the final XTEA key
-    drm->drm_key[0] = bswap(drm->keystore[0x2D] ^ sha.hash[0]);
-    drm->drm_key[1] = bswap(drm->keystore[0x2E] ^ sha.hash[1]);
-    drm->drm_key[2] = bswap(drm->keystore[0x2F] ^ sha.hash[2]);
-    drm->drm_key[3] = bswap(drm->keystore[0x30] ^ sha.hash[3]);
+    // result is also used to decrypt the final XTEA key
+    // (unsure whether or not to bswap here already tho)
+    drm->keystore[0x2D] ^= sha.hash[0];
+    drm->keystore[0x2E] ^= sha.hash[1];
+    drm->keystore[0x2F] ^= sha.hash[2];
+    drm->keystore[0x30] ^= sha.hash[3];
+
+    // wipe PSID from the keystore for datting (incl. from the key)
+    // sample files i've gotten, where the files are 100% identical
+    // but with different keystores only had this data chunk differ
+    drm->keystore[0x31] = 0x00000000;
+    drm->keystore[0x32] = 0x00000000;
+    drm->keystore[0x33] = 0x00000000;
+    drm->keystore[0x34] = 0x00000000;
+    drm->keystore[0x35] = 0x00000000;
+    // otherwise if even the DRM key was different, then
+    // 0x04~0x5F and 0x84~0x98 SHA-1 were also different
+
+    // and update the new keystore hash accordingly
+    hash_keystore(&sha, drm->keystore);
+    sha1_copy(&sha, &drm->keystore[0x18]); // 0x60~0x74
+
+    drm->drm_key[0] = bswap(drm->keystore[0x2D]);
+    drm->drm_key[1] = bswap(drm->keystore[0x2E]);
+    drm->drm_key[2] = bswap(drm->keystore[0x2F]);
+    drm->drm_key[3] = bswap(drm->keystore[0x30]);
 
     return true;
 }
 
 
 static bool encrypt_keystore(drm_t *drm) {
+    // see decrypt_keystore above for docs
+    sha_t sha;
 
-    //if (!encrypt_drm_key(drm->keystore, drm->psid))
-    //    return false;
+
+    if (drm->keystore[0x3F] != ID_SDRM || drm->keystore[0x3E] != 0x00FE0601 || drm->keystore[0x2C] || drm->keystore[0x00])
+        return false;
+
+    if (drm->keystore[0x31] || drm->keystore[0x32] || drm->keystore[0x33] || drm->keystore[0x34] || drm->keystore[0x35])
+        return false;
+
+    hash_keystore(&sha, drm->keystore);
+    if (!sha1_compare(&sha, &drm->keystore[0x18])) // 0x60~0x74
+        return false;
+
+    drm->drm_key[0] = bswap(drm->keystore[0x2D]); // 0xB4~0xC4
+    drm->drm_key[1] = bswap(drm->keystore[0x2E]);
+    drm->drm_key[2] = bswap(drm->keystore[0x2F]);
+    drm->drm_key[3] = bswap(drm->keystore[0x30]);
+
+
+    sha1(&sha, drm->psid, 0x4);
+    sha1_copy(&sha, &drm->keystore[0x31]); // 0xC4~0xD8
+
+    sha1_init(&sha);
+    sha1_update(&sha, &drm->keystore[0x31], 0x5); // 0xC4~0xD8
+    sha1_update(&sha, &drm->keystore[0x27], 0x5); // 0x9C~0xB0
+    sha1_end(&sha);
+
+    drm->keystore[0x2D] ^= sha.hash[0]; // 0xB4~0xC4
+    drm->keystore[0x2E] ^= sha.hash[1];
+    drm->keystore[0x2F] ^= sha.hash[2];
+    drm->keystore[0x30] ^= sha.hash[3];
+
+    sha1(&sha, &drm->keystore[0x31], 0x5);
+    sha1_copy(&sha, &drm->keystore[0x31]); // 0xC4~0xD8
+
+    hash_keystore(&sha, drm->keystore);
+    sha1_copy(&sha, &drm->keystore[0x18]); // 0x60~0x74
+
 
     print_warn(WARN_PKG_KS_ENCRYPT);
-
     // the original private key is unlikely to ever be discovered
     // so instead maybe create our own RSA priv/pub key pairs and
     // patch them into keys.edat? requires resigning all DLC then
-    //reverse_keystore(keystore);
-    //rsa_sign(keystore, rsa_priv_key, rsa_priv_exp);
-    //reverse_keystore(keystore);
+    //reverse_keystore(drm->keystore);
+    //rsa_sign(drm->keystore, rsa_priv_key, rsa_priv_exp);
+    //reverse_keystore(drm->keystore);
 
     return true;
 }

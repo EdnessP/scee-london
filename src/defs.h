@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-13 - 2025-11-26
+// Written by Edness   2024-07-13 - 2025-12-12
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
@@ -6,7 +6,9 @@
 // not using T() (L"") because it can be either UTF-16 or UTF-32
 #define u(text) u ## text // UTF-16 text (u""), only for Windows
 #define MACRO(...) do { __VA_ARGS__ } while (false)
+#define bswap(num) (num >> 24 | num >> 8 & 0xFF00 | (num & 0xFF00) << 8 | (num & 0xFF) << 24)
 #define min(x, y) (x < y ? x : y) // C-only min() in stdlib.h doesn't exist on gcc/clang?
+#define arrlen(arr) sizeof(arr) / sizeof(arr[0])
 
 // the sizeof(arg) includes the null terminator so i don't need to +1 these here
 #define is_opt_arg(arg, l_arg, s_arg) (!strncmp(arg, l_arg, sizeof(l_arg)) || !strncmp(arg, s_arg, sizeof(s_arg)))
@@ -115,4 +117,4 @@
 
 #define WARN_PKG_BAD_DRM_KS  "Failed to read PACKAGE keystore!\n"
 #define WARN_PKG_KS_ENCRYPT  "PACKAGE keystores currently cannot be signed!\n"
-#define WARN_PKG_BAD_DRMKEY  "Provided PACKAGE key is invalid! Attempting common keys...\n"
+#define WARN_PKG_BAD_DRMKEY  "Keystore PACKAGE key is invalid! Attempting common keys...\n"

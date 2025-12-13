@@ -1,4 +1,4 @@
-// Written by Edness   2024-09-17 - 2025-12-12
+// Written by Edness   2024-09-17 - 2025-12-13
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
@@ -135,7 +135,7 @@ static void sha1_update(sha_t *sha, uint32_t *buf, uint64_t size) {
 }
 
 
-static inline void sha1_end(sha_t *sha) {
+static void sha1_end(sha_t *sha) {
     int i = sha->size & 0xF;
     sha->size <<= 5;
 
@@ -158,26 +158,6 @@ static inline void sha1_end(sha_t *sha) {
 
 // unified wrapper if the data to hash is in a continuous block
 static inline void sha1(sha_t *sha, uint32_t *buf, uint64_t size) {
-    // most of the keystore SHA1 operations are very small
-    // with this being inlined, compilers seem to optimise
-    // which variant to use on a case by case basis anyway
-    if (size < 0xD) {
-        int i;
-        // also a lazy way of skipping a temp
-        // array copy for PSID double hashing
-        // (but we don't talk about that lol)
-        // UPDATE: nvm, had to copy it anyway
-        for (i = 0; i < size; i++)
-            sha->buf[i] = buf[i];
-        sha->buf[i++] = 0x80000000;
-        for (; i < 0xF; i++)
-            sha->buf[i] = 0x00000000;
-        sha->buf[0xF] = size << 5;
-
-        sha1_init(sha);
-        sha1_transform(sha);
-        return;
-    }
     sha1_init(sha);
     sha1_update(sha, buf, size);
     sha1_end(sha);

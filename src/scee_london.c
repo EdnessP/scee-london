@@ -1,10 +1,10 @@
 ﻿// SCEE London Studio PS3 PACKAGE tool
-// Written by Edness   2024-07-13 - 2025-11-28
+// Written by Edness   2024-07-13 - 2025-12-13
 
 #define VERSION "v1.4"
 #ifndef BUILDDATE
     // shoudn't be an issue if you're using the provided build scripts
-    #error Please pre-define the current date in ISO 8601
+    #error Please pre-define the current date in ISO 8601/RFC 3339
 #endif
 
 #define _FILE_OFFSET_BITS 64
@@ -132,6 +132,12 @@ static bool dump_package(pkg_t *pkg, drm_t *drm, const path_t *out_path) {
 
     size = get_filesize(pkg->fp_in);
     if (pkg->is_dlc) size -= 0x100;
+
+    if (!pkg->encrypted) {
+        // encrypt with the zero-xtea key if needed (TODO: improve?)
+        pkg->key = pkg->is_dlc ? drm->drm_key : drm_keys[arrlen(drm_keys) - 1];
+        pkg->encrypted = true;
+    }
 
     if (!write_buffer(pkg, 0x0, size)) goto fail;
 
@@ -346,6 +352,10 @@ static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const 
     uint64_t target_hdr = ID_PACKAGE;
     pkg_t pkg = {0};
 
+    dump_only // also prevents printing a triple-newline if it fails before extracting anything
+        ? printf("Dumping PACKAGE file...\n")
+        : printf("Reading PACKAGE file...\n");
+
     pkg.fp_in = fp_in;
 
     /////////////////////
@@ -355,30 +365,35 @@ static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const 
 
     pkg.encrypted = (pkg.xor != target_hdr);
 
-    if (drm->is_dlc && !read_keystore(fp_in, drm->keystore)) {
+    // drm.is_dlc is if PSID is present, pkg.is_dlc is actual
+    // status to avoid printing a warn when not expecting one
+    // (always check for SingStore DLC DRM keystore presence)
+    pkg.is_dlc = read_keystore(fp_in, drm->keystore);
+    if (!pkg.is_dlc && drm->is_dlc) {
         print_warn(WARN_PKG_BAD_DRM_KS);
         drm->is_dlc = false;
     }
 
     if (pkg.encrypted) {
-        if (drm->is_dlc && !decrypt_keystore(drm)) {
-            print_warn(WARN_PKG_BAD_DRM_KS);
-            drm->is_dlc = false;
+        if (pkg.is_dlc) {
+            pkg.is_dlc = decrypt_keystore(drm);
+            if (!pkg.is_dlc && drm->is_dlc)
+                print_warn(WARN_PKG_BAD_DRM_KS);
         }
+        drm->is_dlc = pkg.is_dlc;
 
         target_hdr ^= pkg.xor;
         pkg.key = get_package_key(drm, target_hdr);
-        if (pkg.key == NULL) {
+        if (!pkg.key) {
             print_err(ERR_PKG_KEY_UNKNOWN);
             return false;
         }
     }
-    else if (drm->is_dlc && !encrypt_keystore(drm)) {
-        print_warn(WARN_PKG_BAD_DRM_KS);
-        drm->is_dlc = false;
+    else if (pkg.is_dlc) { // && dump_only
+        pkg.is_dlc = encrypt_keystore(drm);
+        if (!pkg.is_dlc && drm->is_dlc)
+            print_warn(WARN_PKG_BAD_DRM_KS);
     }
-
-    pkg.is_dlc = drm->is_dlc;
 
     return dump_only
         ? dump_package(&pkg, drm, out_path)
@@ -514,8 +529,6 @@ int main(int argc, path_t **argv) {
     get_abspath(out_path, abs_path);
 
 
-    // this printf just prevents a triple-newline if it fails before extracting anything lol
-    printf("Reading PACKAGE file...\n");
     if (!read_package(&drm, fp_in, abs_path, dump_only))
         goto fail;
 
