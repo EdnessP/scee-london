@@ -13,7 +13,6 @@
 // the sizeof(arg) includes the null terminator so i don't need to +1 these here
 #define is_opt_arg(arg, l_arg, s_arg) (!strncmp(arg, l_arg, sizeof(l_arg)) || !strncmp(arg, s_arg, sizeof(s_arg)))
 
-// kinda ugly using %hs for windows here but whatever lol
 #define print_err(msg) fprintf(stderr, "\n[ERROR] %s", msg) // ("\nERROR: " msg) also works but...
 #define print_warn(msg) fprintf(stderr, "\n[WARNING] %s", msg) // ("\nWARNING: " msg)
 

@@ -14,6 +14,7 @@
 #define KS_CHUNKS 0x40
 #define ID_SDRM 0x5344524D
 
+// David Ireland's BigDigits - same library SCEE themselves also used
 #define rsa_sign(msg, key, exp) mpModExp(msg, msg, exp, key, KS_CHUNKS)
 #define rsa_verify(msg, key, exp) mpModExp(msg, msg, exp, key, KS_CHUNKS)
 
@@ -193,8 +194,7 @@ static uint32_t const *get_package_key(drm_t *drm, const uint64_t target_hdr) {
     if (drm->is_dlc) {
         if (get_xtea_xor_key(0, drm->drm_key, true) == target_hdr)
             return drm->drm_key;
-        print_warn(WARN_PKG_BAD_DRMKEY);
-        // maybe return NULL here already?
+        print_warn(WARN_PKG_BAD_DRMKEY); // maybe return NULL?
     }
     for (int i = 0; i < arrlen(drm_keys); i++) {
         if (get_xtea_xor_key(0, drm_keys[i], false) == target_hdr)
@@ -222,53 +222,6 @@ static void reverse_keystore(uint32_t *keystore) {
         keystore[i] = ks_tmp;
     }
 }
-
-
-// I eventually realised the BigDigits library that I had around was
-// ancient and the latest ver properly handles them in 32-bit values
-/*
-#define __multiply64_32(x, y) MACRO( \
-    tmp_mul = (uint64_t)x * y; \
-    mul_lower = tmp_mul & 0xFFFFFFFF; \
-    mul_upper = tmp_mul >> 32; \
-)
-// I couldn't find a plain multi-precision arithmetic library or an
-// RSA/crypto library which isn't overly bloated and worked with 32
-// bit values out of the box.  SCEE used BigDigits by David Ireland
-// but it uses unsigned long for DIGITS_T, which is 64-bit on POSIX
-// while still 32-bit on Windows, and I really didn't want to screw
-// with that.  So instead, here's my simplified RE'd implementation
-static inline void rsa_modular_multiply(uint32_t *keystore, const uint32_t *ks_dec) {
-    uint32_t ks_exp[KS_CHUNKS * 2] = {0};
-    uint32_t ks_tmp[KS_CHUNKS] = {0};
-    // could make this a union but BE
-    // arch indices would be inverted
-    uint32_t mul_upper, mul_lower;
-    uint64_t tmp_mul;
-
-    // multiply keystore blocks together
-    for (int i = 0; i < KS_CHUNKS; i++) {
-        // skip initial null chunks
-        while (i < KS_CHUNKS && !ks_dec[i])
-            ks_exp[KS_CHUNKS + i++] = 0x00000000;
-        if (i >= KS_CHUNKS) break;
-
-        uint32_t prev = 0, idx = i;
-        for (int j = 0; j < KS_CHUNKS; j++) {
-            __multiply64_32(keystore[j], ks_dec[i]);
-            if (mul_lower + prev < prev) mul_upper++;
-            mul_lower += prev + ks_exp[idx];
-            if (mul_lower < ks_exp[idx]) mul_upper++;
-            ks_exp[idx++] = mul_lower;
-            prev = mul_upper;
-        }
-        ks_exp[KS_CHUNKS + i] = mul_upper;
-    }
-
-    // modulo result w/ key
-}
-#undef __multiply64_32
-*/
 
 
 static bool decrypt_keystore(drm_t *drm) {

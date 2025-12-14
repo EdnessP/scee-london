@@ -1,4 +1,19 @@
 ﻿// SCEE London Studio PS3 PACKAGE tool
+// Copyright (C) 2024-2025  Edness
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see https://www.gnu.org/licenses/.
+
 // Written by Edness   2024-07-13 - 2025-12-13
 
 #define VERSION "v1.4"
@@ -8,8 +23,6 @@
 #endif
 
 #define _FILE_OFFSET_BITS 64
-#define _LARGEFILE64_SOURCE 1
-#define _CRT_SECURE_NO_WARNINGS
 
 #include <stdio.h>
 #include <stdint.h>

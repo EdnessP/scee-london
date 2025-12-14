@@ -2,7 +2,7 @@
 
 mkdir -p ./out/linux
 
-if [[ $1 == clang ]]; then
+if [ $1 == clang ]; then
     build=clang
 else
     build=gcc
@@ -26,7 +26,7 @@ if [ -d $obggcc ]; then
     export LIBRARY_PATH=$obggcc/lib
     # ignore all this, I thought obggcc wasn't working with
     # clang, but I just didn't extract everything it needed
-    #if [[ $1 == clang ]] && [ ! -d $obggcc/usr ]; then
+    #if [ $1 == clang ] && [ ! -d $obggcc/usr ]; then
     #    mkdir -p $obggcc/usr
     #    ln -s $obggcc/include $obggcc/usr/include
     #    ln -s $obggcc/lib $obggcc/usr/lib
