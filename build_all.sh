@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-if [ $1 != msvc ]; then
+if [[ $1 != msvc ]]; then
     # if not called from a visual studio post-build event
     ./build_win64.sh
 fi

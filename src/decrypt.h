@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-13 - 2025-12-13
+// Written by Edness   2024-07-13 - 2025-12-15
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
@@ -160,10 +160,6 @@ static const uint32_t drm_keys[][4] = {
 };
 
 
-// PACKAGE uses a slightly "custom" implementation of XTEA encryption
-// using the block offset index as the IV with a constant first half,
-// encrypting that with XTEA, and using the result to XOR said block.
-// (v0 technically isn't hardcoded in the games but yk optimizations)
 #define __do_xtea_rounds(rounds) MACRO( \
     for (int i = 0; i < rounds; i++) { \
         v0 += (v1 << 4 ^ v1 >> 5) + v1 ^ sum + key[sum & 3]; \
@@ -172,6 +168,10 @@ static const uint32_t drm_keys[][4] = {
     } \
 )
 
+// PACKAGE uses a slightly "custom" implementation of XTEA encryption
+// using the block offset index as the IV with a constant first half,
+// encrypting that with XTEA, and using the result to XOR said block.
+// (v0 technically isn't hardcoded in the games but yk optimizations)
 static uint64_t get_xtea_xor_key(uint32_t v1, const uint32_t *key, const bool is_dlc) {
     // Reimplemented from the function at 004C8454 in
     // the Polish release of SingStar: Ultimate Party
@@ -215,7 +215,7 @@ static inline void hash_keystore(sha_t *sha, uint32_t *keystore) {
 
 
 static void reverse_keystore(uint32_t *keystore) {
-    for (int i = 0; i < KS_CHUNKS / 2; i++) {
+    for (int i = 0; i < KS_CHUNKS >> 1; i++) {
         int o = (KS_CHUNKS - 1 - i); // i opposite
         uint32_t ks_tmp = keystore[o];
         keystore[o] = keystore[i];
@@ -233,11 +233,6 @@ static bool decrypt_keystore(drm_t *drm) {
         uint32_t exponent[KS_CHUNKS] = {0x10001};
 
         reverse_keystore(drm->keystore);
-
-        //memcpy(ks_orig, keystore, KS_CHUNKS * 0x4);
-        //for (int i = 0; i < 16; i++)
-        //    rsa_modular_multiply(keystore, keystore);
-        //rsa_modular_multiply(keystore, ks_orig);
 
         // verify (decrypt) signed keystore
         rsa_verify(drm->keystore, rsa_pub_key, exponent);
@@ -271,7 +266,7 @@ static bool decrypt_keystore(drm_t *drm) {
     if (drm->keystore[0x3F] != ID_SDRM || drm->keystore[0x3E] != 0x00FE0601 || drm->keystore[0x2C] || drm->keystore[0x00])
         return false;
 
-    // verify SHA-1 of the whole keystore block (v1.06)
+    // verify SHA-1 of the whole keystore block (v1.06 variant)
     hash_keystore(&sha, drm->keystore);
     if (!sha1_compare(&sha, &drm->keystore[0x18])) // 0x60~0x74
         return false;
@@ -291,6 +286,10 @@ static bool decrypt_keystore(drm_t *drm) {
     // it then hashes something of zero length and i'm not sure what it is
     // but since the keystores have a seemingly constant zero length SHA-1
     // at 0x9C [0x27], might as well just use that (and hope for the best)
+    sha1_init(&sha); sha1_end(&sha);
+    if (!sha1_compare(&sha, &drm->keystore[0x27])) // 0x9C~0xB0
+        return false;
+
     sha1_init(&sha);
     sha1_update(&sha, psid_hash, 0x5);
     sha1_update(&sha, &drm->keystore[0x27], 0x5);

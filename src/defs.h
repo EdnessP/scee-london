@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-13 - 2025-12-12
+// Written by Edness   2024-07-13 - 2025-12-15
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
@@ -13,8 +13,9 @@
 // the sizeof(arg) includes the null terminator so i don't need to +1 these here
 #define is_opt_arg(arg, l_arg, s_arg) (!strncmp(arg, l_arg, sizeof(l_arg)) || !strncmp(arg, s_arg, sizeof(s_arg)))
 
-#define print_err(msg) fprintf(stderr, "\n[ERROR] %s", msg) // ("\nERROR: " msg) also works but...
-#define print_warn(msg) fprintf(stderr, "\n[WARNING] %s", msg) // ("\nWARNING: " msg)
+// this is ultra jank but don't worry about it, keeps the main code clean :^)
+#define print_err(...) MACRO( fprintf(stderr, "\n[ERROR] "); fprintf(stderr, __VA_ARGS__); )
+#define print_warn(...) MACRO( fprintf(stderr, "\n[WARNING] "); fprintf(stderr, __VA_ARGS__); )
 
 
 // this used to be a lot cleaner at one point, but then I wanted "proper" Windows support
@@ -46,7 +47,7 @@
     // confusing, but it does in fact need the buffer size, unlike sprintf or wprintf
     // (microsoft has _snwprintf which doesn't null terminate for whatever reason...)
     #define printf(str, ...) wprintf(u(str), ##__VA_ARGS__) // mingw dies without ##?
-    #define fprintf(f, str, ...) fwprintf(f, u(str), u(__VA_ARGS__))
+    #define fprintf(f, str, ...) fwprintf(f, u(str), ##__VA_ARGS__)
     #define snprintf(out, len, str, ...) swprintf(out, len, u(str), __VA_ARGS__)
     #define strncmp(str, cmp, ...) wcsncmp(str, u(cmp), __VA_ARGS__)
     #define strnlen wcsnlen
@@ -96,7 +97,7 @@
 #define ERR_ALLOC            "Failed to allocate memory!\n"
 
 #define ERR_NO_ARGS          "Not enough arguments!\n"
-#define ERR_BAD_ARGS         "Invalid argument: "
+#define ERR_BAD_ARGS         "Invalid argument: %s\n"
 #define ERR_BAD_ARG_DRMKEY   "Provided PACKAGE key is invalid!\n"
 #define ERR_BAD_ARG_IN_FILE  "Failed to open the input file!\n"
 #define ERR_BAD_ARG_OUT_PATH "Provided output path is invalid!\n"

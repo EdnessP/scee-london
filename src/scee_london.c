@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see https://www.gnu.org/licenses/.
 
-// Written by Edness   2024-07-13 - 2025-12-13
+// Written by Edness   2024-07-13 - 2025-12-15
 
 #define VERSION "v1.4"
 #ifndef BUILDDATE
@@ -402,7 +402,7 @@ static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const 
             return false;
         }
     }
-    else if (pkg.is_dlc) { // && dump_only
+    else if (pkg.is_dlc && dump_only) {
         pkg.is_dlc = encrypt_keystore(drm);
         if (!pkg.is_dlc && drm->is_dlc)
             print_warn(WARN_PKG_BAD_DRM_KS);
@@ -416,7 +416,7 @@ static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const 
 
 // this used to get inlined all the time anyway, when it was a standalone function
 // (now it's a macro to allow for automatically converting it to wchar on windows)
-#define print_err_usage(msg) MACRO( \
+#define print_err_usage(msg, ...) MACRO( \
     printf( \
         "Usage:  ." PATH_SEP_S "scee_london  \"" HELP_USAGE_IN "\"  [options]\n" \
         "Options:\n" \
@@ -424,7 +424,7 @@ static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const 
         "   -k | --drmkey  <str>  0123456789ABCDEF0123456789ABCDEF\n" \
         "   -d | --dump           Only decrypt or encrypt PACKAGE file\n" \
     ); \
-    print_err(msg); \
+    print_err(msg, ##__VA_ARGS__); \
 )
 
 int main(int argc, path_t **argv) {
@@ -519,12 +519,7 @@ int main(int argc, path_t **argv) {
             drm.is_dlc = true;
         }
         else {
-            print_err_usage(ERR_BAD_ARGS);
-            // jank, doesn't go to stderr and perror puts extra stuff
-            // (all the argless printfs get optimised to puts anyway)
-            puts(argv[i]);
-            //fputs(argv[i], stderr);
-            //fputs(u("\n"), stderr);
+            print_err_usage(ERR_BAD_ARGS, argv[i]);
             goto fail;
         }
     }
