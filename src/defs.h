@@ -14,8 +14,8 @@
 #define is_opt_arg(arg, l_arg, s_arg) (!strncmp(arg, l_arg, sizeof(l_arg)) || !strncmp(arg, s_arg, sizeof(s_arg)))
 
 // this is ultra jank but don't worry about it, keeps the main code clean :^)
-#define print_err(...) MACRO( fprintf(stderr, "\n[ERROR] "); fprintf(stderr, __VA_ARGS__); )
-#define print_warn(...) MACRO( fprintf(stderr, "\n[WARNING] "); fprintf(stderr, __VA_ARGS__); )
+#define print_err(...) MACRO( fputs("\n[ERROR] ", stderr); fprintf(stderr, __VA_ARGS__); )
+#define print_warn(...) MACRO( fputs("\n[WARNING] ", stderr); fprintf(stderr, __VA_ARGS__); )
 
 
 // this used to be a lot cleaner at one point, but then I wanted "proper" Windows support
@@ -51,8 +51,8 @@
     #define snprintf(out, len, str, ...) swprintf(out, len, u(str), __VA_ARGS__)
     #define strncmp(str, cmp, ...) wcsncmp(str, u(cmp), __VA_ARGS__)
     #define strnlen wcsnlen
-    #define puts _putws
-    //#define fputs fputws
+    //#define puts _putws // in case i need to print a buffer on windows w/ this jank
+    #define fputs(str, f) fputws(u(str), f)
     //#define perror _wperror
     //#define sscanf(str, fmt, ...) swscanf(str, u(fmt), __VA_ARGS__)
 

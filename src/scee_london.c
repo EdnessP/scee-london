@@ -416,7 +416,7 @@ static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const 
 
 // this used to get inlined all the time anyway, when it was a standalone function
 // (now it's a macro to allow for automatically converting it to wchar on windows)
-#define print_err_usage(msg, ...) MACRO( \
+#define print_err_usage(...) MACRO( \
     printf( \
         "Usage:  ." PATH_SEP_S "scee_london  \"" HELP_USAGE_IN "\"  [options]\n" \
         "Options:\n" \
@@ -424,7 +424,7 @@ static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const 
         "   -k | --drmkey  <str>  0123456789ABCDEF0123456789ABCDEF\n" \
         "   -d | --dump           Only decrypt or encrypt PACKAGE file\n" \
     ); \
-    print_err(msg, ##__VA_ARGS__); \
+    print_err(__VA_ARGS__); \
 )
 
 int main(int argc, path_t **argv) {
