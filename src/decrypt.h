@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-13 - 2025-12-15
+// Written by Edness   2024-07-13 - 2025-12-16
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
@@ -15,8 +15,8 @@
 #define ID_SDRM 0x5344524D
 
 // David Ireland's BigDigits - same library SCEE themselves also used
-#define rsa_sign(msg, key, exp) mpModExp(msg, msg, exp, key, KS_CHUNKS)
-#define rsa_verify(msg, key, exp) mpModExp(msg, msg, exp, key, KS_CHUNKS)
+#define rsa_sign(msg, exp, mod) mpModExp(msg, msg, exp, mod, KS_CHUNKS)
+#define rsa_verify(msg, exp, mod) mpModExp(msg, msg, exp, mod, KS_CHUNKS)
 
 typedef struct {
     uint32_t psid[4]; // OpenPSID keystore key
@@ -30,7 +30,7 @@ typedef struct {
 // but only this one is used for DRM keystore decryption
 // (however it does on some rare occasions switch to the
 // 2nd public key in keys.edat observed while debugging)
-static uint32_t rsa_pub_key[KS_CHUNKS] = { // not const because BigDigits mpShiftLeft will segfault
+static uint32_t rsa_modulus[KS_CHUNKS] = { // not const because BigDigits mpShiftLeft will segfault
     0xD9425983, 0x0B4C6BB4, 0x740B4B22, 0xD8708CD5, 0xBC7C7341, 0x2B4EC341, 0xD9E6EF17, 0x92944487,
     0xB52A19BA, 0xD1EA4FAE, 0x9AD37F15, 0x482706F5, 0x0843D556, 0xE4DFF9D6, 0x9C8A19FC, 0x67D89622,
     0xA58B42DB, 0xCE562145, 0x5E6CFB4A, 0xA292E651, 0xD7955EDE, 0xA8C552EF, 0xDE2B8957, 0x27E37927,
@@ -235,7 +235,7 @@ static bool decrypt_keystore(drm_t *drm) {
         reverse_keystore(drm->keystore);
 
         // verify (decrypt) signed keystore
-        rsa_verify(drm->keystore, rsa_pub_key, exponent);
+        rsa_verify(drm->keystore, exponent, rsa_modulus);
 
         // should have an SDRM header id if successfully decrypted (validated later)
         //if (keystore[0x00] != ID_SDRM || keystore[0x13] || keystore[0x3F])
@@ -371,7 +371,7 @@ static bool encrypt_keystore(drm_t *drm) {
     // so instead maybe create our own RSA priv/pub key pairs and
     // patch them into keys.edat? requires resigning all DLC then
     //reverse_keystore(drm->keystore);
-    //rsa_sign(drm->keystore, rsa_priv_key, rsa_priv_exp);
+    //rsa_sign(drm->keystore, rsa_priv_exp, rsa_modulus);
     //reverse_keystore(drm->keystore);
 
     return true;
