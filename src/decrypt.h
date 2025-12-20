@@ -328,6 +328,7 @@ static bool decrypt_keystore(drm_t *drm) {
 
 static bool encrypt_keystore(drm_t *drm) {
     // see decrypt_keystore above for docs
+    uint32_t psid_hash[5] = {0};
     sha_t sha;
 
 
@@ -347,11 +348,15 @@ static bool encrypt_keystore(drm_t *drm) {
     drm->drm_key[3] = bswap(drm->keystore[0x30]);
 
 
-    sha1(&sha, drm->psid, 0x4);
-    sha1_copy(&sha, &drm->keystore[0x31]); // 0xC4~0xD8
+    if (drm->is_dlc) { // has PSID
+        sha1(&sha, drm->psid, 0x4);
+        sha1_copy(&sha, psid_hash);
+        sha1(&sha, psid_hash, 0x5);
+        sha1_copy(&sha, &drm->keystore[0x31]); // 0xC4~0xD8
+    }
 
     sha1_init(&sha);
-    sha1_update(&sha, &drm->keystore[0x31], 0x5); // 0xC4~0xD8
+    sha1_update(&sha, psid_hash, 0x5);
     sha1_update(&sha, &drm->keystore[0x27], 0x5); // 0x9C~0xB0
     sha1_end(&sha);
 
@@ -359,9 +364,6 @@ static bool encrypt_keystore(drm_t *drm) {
     drm->keystore[0x2E] ^= sha.hash[1];
     drm->keystore[0x2F] ^= sha.hash[2];
     drm->keystore[0x30] ^= sha.hash[3];
-
-    sha1(&sha, &drm->keystore[0x31], 0x5);
-    sha1_copy(&sha, &drm->keystore[0x31]); // 0xC4~0xD8
 
     hash_keystore(&sha, drm->keystore);
     sha1_copy(&sha, &drm->keystore[0x18]); // 0x60~0x74
