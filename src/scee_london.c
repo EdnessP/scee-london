@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see https://www.gnu.org/licenses/.
 
-// Written by Edness   2024-07-13 - 2025-12-16
+// Written by Edness   2024-07-13 - 2025-12-20
 
 #define VERSION "v1.4.1"
 #ifndef BUILDDATE
@@ -378,22 +378,20 @@ static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const 
 
     pkg.encrypted = (pkg.xor != target_hdr);
 
-    // drm.is_dlc is if PSID is present, pkg.is_dlc is actual
-    // status to avoid printing a warn when not expecting one
-    // (always check for SingStore DLC DRM keystore presence)
+    // always check for SingStore DLC DRM keystore presence
     pkg.is_dlc = read_keystore(fp_in, drm->keystore);
-    if (!pkg.is_dlc && drm->is_dlc) {
+    if (!pkg.is_dlc && drm->has_psid) {
         print_warn(WARN_PKG_BAD_DRM_KS);
-        drm->is_dlc = false;
+        drm->has_psid = false;
     }
 
     if (pkg.encrypted) {
         if (pkg.is_dlc) {
             pkg.is_dlc = decrypt_keystore(drm);
-            if (!pkg.is_dlc && drm->is_dlc)
+            if (!pkg.is_dlc && drm->has_psid)
                 print_warn(WARN_PKG_BAD_DRM_KS);
         }
-        drm->is_dlc = pkg.is_dlc;
+        drm->has_psid = pkg.is_dlc;
 
         target_hdr ^= pkg.xor;
         pkg.key = get_package_key(drm, target_hdr);
@@ -404,7 +402,7 @@ static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const 
     }
     else if (pkg.is_dlc && dump_only) {
         pkg.is_dlc = encrypt_keystore(drm);
-        if (!pkg.is_dlc && drm->is_dlc)
+        if (!pkg.is_dlc && drm->has_psid)
             print_warn(WARN_PKG_BAD_DRM_KS);
     }
 
@@ -516,7 +514,7 @@ int main(int argc, path_t **argv) {
                 drm.psid[j] = segment;
                 //printf("psid[%d] = 0x%08X\n", j, psid[j]);
             }
-            drm.is_dlc = true;
+            drm.has_psid = true;
         }
         else {
             print_err_usage(ERR_BAD_ARGS, argv[i]);

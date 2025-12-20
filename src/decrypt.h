@@ -22,7 +22,7 @@ typedef struct {
     uint32_t psid[4]; // OpenPSID keystore key
     uint32_t drm_key[4]; // final .PKG.DRM key
     uint32_t keystore[KS_CHUNKS];
-    bool is_dlc;
+    bool has_psid;
 } drm_t;
 
 
@@ -192,7 +192,7 @@ static uint64_t get_xtea_xor_key(uint32_t v1, const uint32_t *key, const bool is
 
 static uint32_t const *get_package_key(drm_t *drm, const uint64_t target_hdr) {
 
-    if (drm->is_dlc) {
+    if (drm->has_psid) { // pkg.is_dlc
         if (get_xtea_xor_key(0, drm->drm_key, true) == target_hdr)
             return drm->drm_key;
         print_warn(WARN_PKG_BAD_DRMKEY); // maybe return NULL?
@@ -348,7 +348,7 @@ static bool encrypt_keystore(drm_t *drm) {
     drm->drm_key[3] = bswap(drm->keystore[0x30]);
 
 
-    if (drm->is_dlc) { // has PSID
+    if (drm->has_psid) {
         sha1(&sha, drm->psid, 0x4);
         sha1_copy(&sha, psid_hash);
         sha1(&sha, psid_hash, 0x5);
