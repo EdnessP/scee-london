@@ -23,7 +23,7 @@ Drag and drop the PACKAGE file onto the .EXE file.
 == Usage (Proper, Windows/Linux/macOS) ==
 Provide a path to a PACKAGE file, and optionally also a path to a chosen output
 directory with -o or --output through a terminal or command line interface.
-Use -k or --drmkey to provide your PS3's PSID for decrypting .PKG.DRM files.
+Use -k or --drmkey to provide your PS3's Open PSID for decrypting .DRM files.
 Use -d or --dump to just decrypt/encrypt the PACKAGE without extracting it.
 
 Linux and macOS may require you to first run: sudo chmod +x scee_london

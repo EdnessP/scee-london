@@ -246,19 +246,19 @@ static bool decrypt_keystore(drm_t *drm) {
         reverse_keystore(drm->keystore);
     }
 
-    // 0x00~0x04: 00000000, 007F0000 in universal DLC?
-    // 0x04~0x5F: unk (file hash?) (technically starts at 0x02?)
-    // 0x5F~0x60: 0x14 (XTEA rounds? 0x00 for pkd keystores)
+    // 0x00~0x04: 00000000, 007F0000 in universal DLC? flags/state?
+    // 0x04~0x5F: unk (file hash?) (used for <1.00 and starts at 0x02?)
+    // 0x5F~0x60: 0x14 (XTEA rounds? blank for pkd keystores)
     // 0x60~0x74: wraparound SHA-1 of 0x74~0x60 (0x74~0x100 + 0x00~0x60)
-    // 0x74~0x84: F33964A9 46BD983F 6B1B6306 73E79E0B (XTEA key related?)
-    // 0x84~0x98: SHA-1 related to the decrypted XTEA key? or encrypted file hash?
-    // 0x98~0x9C: 0301FF01 (first byte 0x03 is used for some drmkey decryption state?)
-    // 0x9C~0xB0: zero length SHA-1 of some user data? DA39A3EE5E6B4B0D3255BFEF95601890AFD80709
+    // 0x74~0x84: F33964A9 46BD983F 6B1B6306 73E79E0B (padding?)
+    // 0x84~0x98: SHA-1 of the first 0x10000 encrypted file data
+    // 0x98~0x9C: 0301FF01, 05010000 for pkd (flags? 1st byte 03/05 is used for some drm state?)
+    // 0x9C~0xB0: zero length SHA-1 of some nonexistent companion file?
     // 0xB0~0xB4: 00000000
     // 0xB4~0xC4: encrypted XTEA key
-    // 0xC4~0xD8: SHA-1 of the PSID (blank for pkd keystores)
-    // 0xD8~0xE8: 5D4C6E15 44015809 AC35AC16 575FC123 (XTEA key related?)
-    // 0xE8~0xF8: ECD56806 BA777B7F 685A55ED 78114B9A (XTEA key related?)
+    // 0xC4~0xD8: SHA-1 of the PSID (blank for pkd keystores and universal pkg drm)
+    // 0xD8~0xE8: 5D4C6E15 44015809 AC35AC16 575FC123 (padding?)
+    // 0xE8~0xF8: ECD56806 BA777B7F 685A55ED 78114B9A (padding?)
     // 0xF8~0xFC: 00FE0601 (version? v01.06, -512?)
     // 0xFC~x100: SDRM
 
@@ -287,9 +287,22 @@ static bool decrypt_keystore(drm_t *drm) {
     // it then hashes something of zero length and i'm not sure what it is
     // but since the keystores have a seemingly constant zero length SHA-1
     // at 0x9C [0x27], might as well just use that (and hope for the best)
+    // (same function as used to hash first 0x10000 bytes for 0x84 [0x21])
     sha1_init(&sha); sha1_end(&sha);
     if (!sha1_compare(&sha, &drm->keystore[0x27])) // 0x9C~0xB0
         return false;
+
+    //size = get_filesize(pkg->fp_in) - 0x100;
+    //size = min(size, 0x10000);
+    //sha1_init(&sha);
+    //while (size >= 0x40) {
+    //    fread(sha.buf, 0x40, 1, pkg->fp_in)
+    //    sha1_transform(&sha);
+    //    size -= 0x40;
+    //}
+    //sha1_end(&sha);
+    //if (!sha1_compare(&sha, &drm->keystore[0x21])) // 0x84~0x98
+    //    return false;
 
     sha1_init(&sha);
     sha1_update(&sha, psid_hash, 0x5);
@@ -301,6 +314,8 @@ static bool decrypt_keystore(drm_t *drm) {
     drm->keystore[0x2E] ^= sha.hash[1];
     drm->keystore[0x2F] ^= sha.hash[2];
     drm->keystore[0x30] ^= sha.hash[3];
+    // the file hash both from the sha state and at 0x84
+    // are used to xor the key, which cancels itself out
 
     // wipe PSID from the keystore for datting (incl. from the key)
     // sample files i've gotten, where the files are 100% identical
