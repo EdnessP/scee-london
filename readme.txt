@@ -26,9 +26,9 @@ directory with -o or --output through a terminal or command line interface.
 Use -k or --drmkey to provide your PS3's PSID for decrypting .PKG.DRM files.
 Use -d or --dump to just decrypt/encrypt the PACKAGE without extracting it.
 
-Linux and macOS may require you to first run: sudo chmod +x ./scee_london
-macOS may require running: sudo xattr -d com.apple.quarantine scee_london
-after first moving it out of Downloads so it doesn't get re-quarantined.
+Linux and macOS may require you to first run: sudo chmod +x scee_london
+macOS may also require: sudo xattr -d com.apple.quarantine scee_london
+after first moving it out of Downloads for it not to get quarantined.
 
 
 == Shout-Outs ==

@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-13 - 2025-12-15
+// Written by Edness   2024-07-13 - 2025-12-16
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
@@ -99,7 +99,7 @@
 #define ERR_NO_ARGS          "Not enough arguments!\n"
 #define ERR_BAD_ARGS         "Invalid argument: %s\n"
 #define ERR_BAD_ARG_DRMKEY   "Provided PACKAGE key is invalid!\n"
-#define ERR_BAD_ARG_IN_FILE  "Failed to open the input file!\n"
+#define ERR_BAD_ARG_INFILE   "Failed to open the input file!\n"
 #define ERR_BAD_ARG_OUT_PATH "Provided output path is invalid!\n"
 
 #define ERR_PKG_KEY_UNKNOWN  "Failed to determine PACKAGE encryption key!\n"

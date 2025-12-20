@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see https://www.gnu.org/licenses/.
 
-// Written by Edness   2024-07-13 - 2025-12-15
+// Written by Edness   2024-07-13 - 2025-12-16
 
-#define VERSION "v1.4"
+#define VERSION "v1.4.1"
 #ifndef BUILDDATE
     // shoudn't be an issue if you're using the provided build scripts
     #error Please pre-define the current date in ISO 8601/RFC 3339
@@ -460,7 +460,7 @@ int main(int argc, path_t **argv) {
 
     fp_in = fopen(argv[1], "rb");
     if (!fp_in) {
-        print_err_usage(ERR_BAD_ARG_IN_FILE);
+        print_err_usage(ERR_BAD_ARG_INFILE);
         goto fail;
     }
 

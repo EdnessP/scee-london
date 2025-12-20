@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-13 - 2025-12-16
+// Written by Edness   2024-07-13 - 2025-12-20
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
@@ -30,6 +30,7 @@ typedef struct {
 // but only this one is used for DRM keystore decryption
 // (however it does on some rare occasions switch to the
 // 2nd public key in keys.edat observed while debugging)
+// SingStar Vol. 1 has one more different rsakey modulus
 static uint32_t rsa_modulus[KS_CHUNKS] = { // not const because BigDigits mpShiftLeft will segfault
     0xD9425983, 0x0B4C6BB4, 0x740B4B22, 0xD8708CD5, 0xBC7C7341, 0x2B4EC341, 0xD9E6EF17, 0x92944487,
     0xB52A19BA, 0xD1EA4FAE, 0x9AD37F15, 0x482706F5, 0x0843D556, 0xE4DFF9D6, 0x9C8A19FC, 0x67D89622,
@@ -216,7 +217,7 @@ static inline void hash_keystore(sha_t *sha, uint32_t *keystore) {
 
 static void reverse_keystore(uint32_t *keystore) {
     for (int i = 0; i < KS_CHUNKS >> 1; i++) {
-        int o = (KS_CHUNKS - 1 - i); // i opposite
+        int o = KS_CHUNKS - 1 - i; // i opposite
         uint32_t ks_tmp = keystore[o];
         keystore[o] = keystore[i];
         keystore[i] = ks_tmp;
@@ -227,6 +228,8 @@ static void reverse_keystore(uint32_t *keystore) {
 static bool decrypt_keystore(drm_t *drm) {
     // Reimplemented from the functions at 004BF144 and
     // 004BFC58 in the Polish release of Ultimate Party
+    uint32_t psid_hash[5] = {0};
+    sha_t sha;
 
     // skip RSA decryption if it was only dumped reencrypted without signing
     if (drm->keystore[0x3F] != ID_SDRM) {
@@ -243,7 +246,7 @@ static bool decrypt_keystore(drm_t *drm) {
         reverse_keystore(drm->keystore);
     }
 
-    // 0x00~0x04: 0x00000000
+    // 0x00~0x04: 00000000, 007F0000 in universal DLC?
     // 0x04~0x5F: unk (file hash?) (technically starts at 0x02?)
     // 0x5F~0x60: 0x14 (XTEA rounds? 0x00 for pkd keystores)
     // 0x60~0x74: wraparound SHA-1 of 0x74~0x60 (0x74~0x100 + 0x00~0x60)
@@ -251,19 +254,17 @@ static bool decrypt_keystore(drm_t *drm) {
     // 0x84~0x98: SHA-1 related to the decrypted XTEA key? or encrypted file hash?
     // 0x98~0x9C: 0301FF01 (first byte 0x03 is used for some drmkey decryption state?)
     // 0x9C~0xB0: zero length SHA-1 of some user data? DA39A3EE5E6B4B0D3255BFEF95601890AFD80709
-    // 0xB0~0xB4: 0x00000000
+    // 0xB0~0xB4: 00000000
     // 0xB4~0xC4: encrypted XTEA key
     // 0xC4~0xD8: SHA-1 of the PSID (blank for pkd keystores)
     // 0xD8~0xE8: 5D4C6E15 44015809 AC35AC16 575FC123 (XTEA key related?)
     // 0xE8~0xF8: ECD56806 BA777B7F 685A55ED 78114B9A (XTEA key related?)
     // 0xF8~0xFC: 00FE0601 (version? v01.06, -512?)
     // 0xFC~x100: SDRM
-    uint32_t psid_hash[5];
-    sha_t sha;
 
     // is 0x3E keystore version? (v1.06 -512?) the game has code for various versions but only
     // v1.06 is ever used? <1.00 (00xxA000), 1.00 (0100A000), 1.05 (0105FE00), 1.06 (0106FE00)
-    if (drm->keystore[0x3F] != ID_SDRM || drm->keystore[0x3E] != 0x00FE0601 || drm->keystore[0x2C] || drm->keystore[0x00])
+    if (drm->keystore[0x3F] != ID_SDRM || drm->keystore[0x3E] != 0x00FE0601) // || drm->keystore[0x2C] || drm->keystore[0x00]
         return false;
 
     // verify SHA-1 of the whole keystore block (v1.06 variant)
@@ -271,17 +272,17 @@ static bool decrypt_keystore(drm_t *drm) {
     if (!sha1_compare(&sha, &drm->keystore[0x18])) // 0x60~0x74
         return false;
 
-    // verify SHA-1 of the PSID (all 0 if not signed to a specific system, however this shouldn't occur)
-    // (also of note is a later function that derives the final XTEA key checks if this isn't -1 either)
-    if (!drm->keystore[0x31] && !drm->keystore[0x32] && !drm->keystore[0x33] && !drm->keystore[0x34] && !drm->keystore[0x35])
-        return false;
-
-    sha1(&sha, drm->psid, 0x4); // PSID hash is used for XTEA key decryption
-    sha1_copy(&sha, psid_hash);
-    // hashes the result again for v0.05+ (not v1.05+, typo/bug?)
-    sha1(&sha, psid_hash, 0x5); // PSID hash-hash is stored in the keystore
-    if (!sha1_compare(&sha, &drm->keystore[0x31])) // 0xC4~0xD8
-        return false;
+    // verify SHA-1 of the PSID (all 0 if universal - not signed to one system, which does rarely occur)
+    // (also of note is a later function that derives the final XTEA key checks if this isn't -1 either,
+    // so psid_hash in that case should be initialised to -1 as well, but during init only all 0 passes)
+    if (drm->keystore[0x31] || drm->keystore[0x32] || drm->keystore[0x33] || drm->keystore[0x34] || drm->keystore[0x35]) {
+        sha1(&sha, drm->psid, 0x4); // PSID hash is used for XTEA key decryption
+        sha1_copy(&sha, psid_hash);
+        // hashes the result again for v0.05+ (not v1.05+, typo/bug?)
+        sha1(&sha, psid_hash, 0x5); // PSID hash-hash is stored in the keystore
+        if (!sha1_compare(&sha, &drm->keystore[0x31])) // 0xC4~0xD8
+            return false;
+    }
 
     // it then hashes something of zero length and i'm not sure what it is
     // but since the keystores have a seemingly constant zero length SHA-1
@@ -330,7 +331,7 @@ static bool encrypt_keystore(drm_t *drm) {
     sha_t sha;
 
 
-    if (drm->keystore[0x3F] != ID_SDRM || drm->keystore[0x3E] != 0x00FE0601 || drm->keystore[0x2C] || drm->keystore[0x00])
+    if (drm->keystore[0x3F] != ID_SDRM || drm->keystore[0x3E] != 0x00FE0601) // || drm->keystore[0x2C] || drm->keystore[0x00]
         return false;
 
     if (drm->keystore[0x31] || drm->keystore[0x32] || drm->keystore[0x33] || drm->keystore[0x34] || drm->keystore[0x35])
