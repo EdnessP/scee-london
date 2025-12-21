@@ -246,12 +246,12 @@ static bool decrypt_keystore(drm_t *drm) {
         reverse_keystore(drm->keystore);
     }
 
-    // 0x00~0x04: 00000000, 007F0000 in universal DLC? flags/state?
-    // 0x04~0x5F: unk (file hash?) (used for <1.00 and starts at 0x02?)
+    // 0x00~0x04: 00000000, 007F0000 in universal DLC, other values for pkd? flags/state?
+    // 0x04~0x5F: unk (file hash related?) (used for <1.00 and starts at 0x02?)
     // 0x5F~0x60: 0x14 (XTEA rounds? blank for pkd keystores)
     // 0x60~0x74: wraparound SHA-1 of 0x74~0x60 (0x74~0x100 + 0x00~0x60)
     // 0x74~0x84: F33964A9 46BD983F 6B1B6306 73E79E0B (padding?)
-    // 0x84~0x98: SHA-1 of the first 0x10000 encrypted file data
+    // 0x84~0x98: SHA-1 of encrypted file data (0x10000 for pkd, mix of various chunks for DLC?)
     // 0x98~0x9C: 0301FF01, 05010000 for pkd (flags? 1st byte 03/05 is used for some drm state?)
     // 0x9C~0xB0: zero length SHA-1 of some nonexistent companion file?
     // 0xB0~0xB4: 00000000
