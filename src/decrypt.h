@@ -28,8 +28,8 @@ typedef struct {
 
 // keys.edat normally contains 3 public keys (e = 65537)
 // but only this one is used for DRM keystore decryption
-// (however it does on some rare occasions switch to the
-// 2nd public key in keys.edat observed while debugging)
+// (second key is for PKD keystores but unsure about the
+// third, all are likely for earlier game PKD keystores)
 // SingStar Vol. 1 has one more different rsakey modulus
 static uint32_t rsa_modulus[KS_CHUNKS] = { // not const because BigDigits mpShiftLeft will segfault
     0xD9425983, 0x0B4C6BB4, 0x740B4B22, 0xD8708CD5, 0xBC7C7341, 0x2B4EC341, 0xD9E6EF17, 0x92944487,
@@ -246,17 +246,17 @@ static bool decrypt_keystore(drm_t *drm) {
         reverse_keystore(drm->keystore);
     }
 
-    // 0x00~0x04: 00000000, 007F0000 in universal DLC, other values for pkd? flags/state?
+    // 0x00~0x04: 00000000, 007F0000 in universal DLC, other values for PKD? flags/state?
     // 0x04~0x5F: unk (file hash related?) (used for <1.00 and starts at 0x02?)
-    // 0x5F~0x60: 0x14 (XTEA rounds? blank for pkd keystores)
+    // 0x5F~0x60: 0x14 (XTEA rounds? blank for PKD keystores)
     // 0x60~0x74: wraparound SHA-1 of 0x74~0x60 (0x74~0x100 + 0x00~0x60)
-    // 0x74~0x84: F33964A9 46BD983F 6B1B6306 73E79E0B (padding?)
-    // 0x84~0x98: SHA-1 of encrypted file data (0x10000 for pkd, mix of various chunks for DLC?)
-    // 0x98~0x9C: 0301FF01, 05010000 for pkd (flags? 1st byte 03/05 is used for some drm state?)
+    // 0x74~0x84: F33964A9 46BD983F 6B1B6306 73E79E0B (accessed before decrypting the actual file?)
+    // 0x84~0x98: SHA-1 of encrypted file (0x10000 for all, seek +0x3FC00 and read 0x400 until EOF for DLC)
+    // 0x98~0x9C: 0301FF01, 05010000 for PKD (flags? 1st byte 03/05 is used for some drm state?)
     // 0x9C~0xB0: zero length SHA-1 of some nonexistent companion file?
     // 0xB0~0xB4: 00000000
     // 0xB4~0xC4: encrypted XTEA key
-    // 0xC4~0xD8: SHA-1 of the PSID (blank for pkd keystores and universal pkg drm)
+    // 0xC4~0xD8: SHA-1 of the PSID hash (blank for PKD keystores and universal pkg drm)
     // 0xD8~0xE8: 5D4C6E15 44015809 AC35AC16 575FC123 (padding?)
     // 0xE8~0xF8: ECD56806 BA777B7F 685A55ED 78114B9A (padding?)
     // 0xF8~0xFC: 00FE0601 (version? v01.06, -512?)
@@ -287,22 +287,30 @@ static bool decrypt_keystore(drm_t *drm) {
     // it then hashes something of zero length and i'm not sure what it is
     // but since the keystores have a seemingly constant zero length SHA-1
     // at 0x9C [0x27], might as well just use that (and hope for the best)
-    // (same function as used to hash first 0x10000 bytes for 0x84 [0x21])
+    // (almost identical to the function to hash the file for 0x84 [0x21])
     sha1_init(&sha); sha1_end(&sha);
     if (!sha1_compare(&sha, &drm->keystore[0x27])) // 0x9C~0xB0
         return false;
 
-    //size = get_filesize(pkg->fp_in) - 0x100;
-    //size = min(size, 0x10000);
-    //sha1_init(&sha);
-    //while (size >= 0x40) {
-    //    fread(sha.buf, 0x40, 1, pkg->fp_in)
-    //    sha1_transform(&sha);
-    //    size -= 0x40;
-    //}
-    //sha1_end(&sha);
-    //if (!sha1_compare(&sha, &drm->keystore[0x21])) // 0x84~0x98
-    //    return false;
+    /*
+    // proof of concept for verifying the file hash at 0x84
+    filesize = get_filesize(pkg->fp_in) - 0x100;
+    hashsize = min(0x10000, filesize);
+    sha1_init(&sha);
+    fseek(pkg->fp_in, 0x0, SEEK_SET);
+    sha1_update_file(&sha, pkg->fp_in, hashsize);
+    // the loop below is only done for DLC, not for PKD
+    while (ftell(pkg->fp_in) + 0x3FC00 < filesize) {
+        fseek(pkg->fp_in, 0x3FC00, SEEK_CUR);
+        hashsize = min(0x400, filesize - ftell(pkg->fp_in))
+        sha1_update_file(&sha, pkg->fp_in, hashsize);
+    }
+    sha1_end_file(&sha);
+    if (!sha1_compare(&sha, &drm->keystore[0x21])) // 0x84~0x98
+        return false;
+    // the file hash both from the SHA-1 state and at 0x84 are
+    // used to XOR the final XTEA key which cancels itself out
+    */
 
     sha1_init(&sha);
     sha1_update(&sha, psid_hash, 0x5);
@@ -314,8 +322,6 @@ static bool decrypt_keystore(drm_t *drm) {
     drm->keystore[0x2E] ^= sha.hash[1];
     drm->keystore[0x2F] ^= sha.hash[2];
     drm->keystore[0x30] ^= sha.hash[3];
-    // the file hash both from the sha state and at 0x84
-    // are used to xor the key, which cancels itself out
 
     // wipe PSID from the keystore for datting (incl. from the key)
     // sample files i've gotten, where the files are 100% identical

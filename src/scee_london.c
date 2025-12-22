@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see https://www.gnu.org/licenses/.
 
-// Written by Edness   2024-07-13 - 2025-12-20
+// Written by Edness   2024-07-13 - 2025-12-22
 
 #define VERSION "v1.4.1"
 #ifndef BUILDDATE
@@ -306,7 +306,7 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
                     goto fail;
                 }
 
-                if (inflate_init(&mz)) {
+                if (inflate_init(&mz) != Z_OK) {
                     print_err(ERR_ZLIB_INIT);
                     goto fail;
                 }
