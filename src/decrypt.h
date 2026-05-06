@@ -325,7 +325,7 @@ static bool decrypt_keystore(drm_t *drm) {
     sha1_end(&sha);
     // result is also used to decrypt the final XTEA key
     // (unsure whether or not to bswap here already tho)
-    drm->keystore[0x2D] ^= sha.hash[0];
+    drm->keystore[0x2D] ^= sha.hash[0]; // 0xB4~0xC4
     drm->keystore[0x2E] ^= sha.hash[1];
     drm->keystore[0x2F] ^= sha.hash[2];
     drm->keystore[0x30] ^= sha.hash[3];
@@ -345,7 +345,7 @@ static bool decrypt_keystore(drm_t *drm) {
     hash_keystore(&sha, drm->keystore);
     sha1_copy(&sha, &drm->keystore[0x18]); // 0x60~0x74
 
-    drm->drm_key[0] = bswap(drm->keystore[0x2D]);
+    drm->drm_key[0] = bswap(drm->keystore[0x2D]); // 0xB4~0xC4
     drm->drm_key[1] = bswap(drm->keystore[0x2E]);
     drm->drm_key[2] = bswap(drm->keystore[0x2F]);
     drm->drm_key[3] = bswap(drm->keystore[0x30]);
