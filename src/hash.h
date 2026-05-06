@@ -1,7 +1,10 @@
-// Written by Edness   2024-09-17 - 2025-12-13
-#pragma once
+// Written by Edness   2024-09-17 - 2026-05-06
+#ifndef _HASH_H_
+#define _HASH_H_
 #include <stdint.h>
 #include <stdbool.h>
+#include "defs.h"
+#include "decompress.h"
 
 // PACKAGEs use CRC-32/JAMCRC for filename hashes, which just means the final output isn't NOT'd
 // this is probably slower since mz_crc32 already returns it NOT'd per standard CRC-32, but meh.
@@ -14,7 +17,7 @@
 // SHA-1 //
 ///////////
 
-// a simplified SHA-1 implementation for just 32-bit operations
+// a customised SHA-1 implementation for just 32-bit operations
 // (the games use what appears to be standard SHA-1 regardless)
 
 typedef struct {
@@ -22,14 +25,6 @@ typedef struct {
     uint32_t hash[0x5];
     uint64_t size;
 } sha_t;
-
-
-//#define rol(num, bits) ((num << bits) | (num >> (32 - bits)))
-// inlined function instead of a macro to force it to pre-calculate num
-// slightly better codegen for msvc, but mingw/gcc/clang are unaffected
-static inline uint32_t rol(uint32_t num, uint32_t bits) {
-    return (num << bits) | (num >> (32 - bits));
-}
 
 
 static inline bool sha1_compare(sha_t *sha, uint32_t *hash) {
@@ -125,7 +120,7 @@ static void sha1_update(sha_t *sha, uint32_t *buf, uint64_t size) {
         size -= init_size;
         i = init_size;
     }
-    while (size > 0xF) {
+    while (size >= 0x10) {
         memcpy(&sha->buf, &buf[i], 0x40);
         sha1_transform(sha);
         size -= 0x10;
@@ -137,11 +132,11 @@ static void sha1_update(sha_t *sha, uint32_t *buf, uint64_t size) {
 
 static void sha1_end(sha_t *sha) {
     int i = sha->size & 0xF;
-    sha->size <<= 5;
+    sha->size <<= 5; // bits
 
     sha->buf[i++] = 0x80000000;
 
-    if (i > 0xD) {
+    if (i >= 0xE) {
         for (; i < 0x10; i++)
             sha->buf[i] = 0x00000000;
         sha1_transform(sha);
@@ -162,3 +157,5 @@ static inline void sha1(sha_t *sha, uint32_t *buf, uint64_t size) {
     sha1_update(sha, buf, size);
     sha1_end(sha);
 }
+
+#endif

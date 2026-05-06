@@ -1,7 +1,10 @@
 // Written by Edness   2024-07-13 - 2025-12-20
-#pragma once
+#ifndef _DECRYPT_H_
+#define _DECRYPT_H_
 #include <stdint.h>
 #include <stdbool.h>
+#include "defs.h"
+#include "hash.h"
 
 #define NO_ALLOCS
 #define HAVE_C99INCLUDES
@@ -41,6 +44,9 @@ static uint32_t rsa_modulus[KS_CHUNKS] = { // not const because BigDigits mpShif
     0xDA8A044E, 0xCD9D8C51, 0xCF0DB3BE, 0xBE32F500, 0x8B24FD71, 0x0684F15F, 0x0D146D06, 0x74EF64D8,
     0xA77C5D37, 0x1952BC1E, 0x246815D1, 0x5CFBB71E, 0x14E8BD44, 0xC09623F8, 0x14D2AE65, 0xDD3CFCF8
 };
+
+// Not applicable for decrypting with this tool, but for the sake of documentation
+// DanceStar (Everybody Dance) .PKG.EDAT DLC key: 9345AEDDCC96103FFA658AA3D3535AA0
 
 // Shout-out to the Redump.org community for making this possible
 static const uint32_t drm_keys[][4] = {
@@ -86,7 +92,7 @@ static const uint32_t drm_keys[][4] = {
     /* LegacyPS2Discs.pkd
      * SingStar Chart Hits (Australia)
      * SingStar Chartbreaker (Europe)
-     * SingStar Dance (Europe, Spain, USA)
+     * SingStar Dance (Asia, Europe, Spain, USA)
      * SingStar Fussballhits (Germany)
      * SingStar Guitar (Australia, Europe, Germany, Spain)
      * SingStar Intro (Italy)
@@ -215,6 +221,7 @@ static inline void hash_keystore(sha_t *sha, uint32_t *keystore) {
 }
 
 
+// only MSVC refuses to optimise this using SSE (XMM) registers
 static void reverse_keystore(uint32_t *keystore) {
     for (int i = 0; i < KS_CHUNKS >> 1; i++) {
         int o = KS_CHUNKS - 1 - i; // i opposite
@@ -225,9 +232,9 @@ static void reverse_keystore(uint32_t *keystore) {
 }
 
 
+// Reimplemented from the functions at 004BF144 and
+// 004BFC58 in the Polish release of Ultimate Party
 static bool decrypt_keystore(drm_t *drm) {
-    // Reimplemented from the functions at 004BF144 and
-    // 004BFC58 in the Polish release of Ultimate Party
     uint32_t psid_hash[5] = {0};
     sha_t sha;
 
@@ -294,18 +301,18 @@ static bool decrypt_keystore(drm_t *drm) {
 
     /*
     // proof of concept for verifying the file hash at 0x84
-    filesize = get_filesize(pkg->fp_in) - 0x100;
-    hashsize = min(0x10000, filesize);
+    file_size = get_filesize(pkg->fp_in) - 0x100;
+    hash_size = min(0x10000, file_size);
     sha1_init(&sha);
     fseek(pkg->fp_in, 0x0, SEEK_SET);
-    sha1_update_file(&sha, pkg->fp_in, hashsize);
+    sha1_update_fp(&sha, pkg->fp_in, hash_size);
     // the loop below is only done for DLC, not for PKD
-    while (ftell(pkg->fp_in) + 0x3FC00 < filesize) {
+    while (ftell(pkg->fp_in) + 0x3FC00 < file_size) {
         fseek(pkg->fp_in, 0x3FC00, SEEK_CUR);
-        hashsize = min(0x400, filesize - ftell(pkg->fp_in))
-        sha1_update_file(&sha, pkg->fp_in, hashsize);
+        hash_size = min(0x400, file_size - ftell(pkg->fp_in))
+        sha1_update_fp(&sha, pkg->fp_in, hash_size);
     }
-    sha1_end_file(&sha);
+    sha1_end_fp(&sha);
     if (!sha1_compare(&sha, &drm->keystore[0x21])) // 0x84~0x98
         return false;
     // the file hash both from the SHA-1 state and at 0x84 are
@@ -314,7 +321,7 @@ static bool decrypt_keystore(drm_t *drm) {
 
     sha1_init(&sha);
     sha1_update(&sha, psid_hash, 0x5);
-    sha1_update(&sha, &drm->keystore[0x27], 0x5);
+    sha1_update(&sha, &drm->keystore[0x27], 0x5); // 0x9C~0xB0
     sha1_end(&sha);
     // result is also used to decrypt the final XTEA key
     // (unsure whether or not to bswap here already tho)
@@ -326,7 +333,7 @@ static bool decrypt_keystore(drm_t *drm) {
     // wipe PSID from the keystore for datting (incl. from the key)
     // sample files i've gotten, where the files are 100% identical
     // but with different keystores only had this data chunk differ
-    drm->keystore[0x31] = 0x00000000;
+    drm->keystore[0x31] = 0x00000000; // 0xC4~0xD8
     drm->keystore[0x32] = 0x00000000;
     drm->keystore[0x33] = 0x00000000;
     drm->keystore[0x34] = 0x00000000;
@@ -400,3 +407,5 @@ static bool encrypt_keystore(drm_t *drm) {
 
     return true;
 }
+
+#endif

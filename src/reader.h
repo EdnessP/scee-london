@@ -1,7 +1,10 @@
 // Written by Edness   2024-07-29 - 2025-11-28
-#pragma once
+#ifndef _READER_H_
+#define _READER_H_
+#include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include "defs.h"
 
 #define NAME_LEN 0x100
 #define BUF_SIZE 0x8
@@ -211,3 +214,5 @@ static inline int64_t read_be(const uint8_t *buf, uint32_t *offs, const uint8_t 
     *offs += size;
     return val;
 }
+
+#endif

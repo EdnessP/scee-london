@@ -1,5 +1,5 @@
-﻿// SCEE London Studio PS3 PACKAGE tool
-// Copyright (C) 2024-2025  Edness
+// SCEE London Studio PS3 PACKAGE tool
+// Copyright (C) 2024-2026  Edness
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -33,8 +33,8 @@
 #include "defs.h"
 
 #include "decompress.h"
-#include "hash.h"
 #include "decrypt.h"
+#include "hash.h"
 #include "reader.h"
 
 #define ID_PACKAGE 0x204547414B434150

@@ -1,5 +1,7 @@
-// Written by Edness   2024-07-13 - 2025-12-16
-#pragma once
+// Written by Edness   2024-07-13 - 2026-04-03
+#ifndef _DEFS_H_
+#define _DEFS_H_
+#include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -9,6 +11,12 @@
 #define bswap(num) (num >> 24 | num >> 8 & 0xFF00 | (num & 0xFF00) << 8 | (num & 0xFF) << 24)
 #define min(x, y) (x < y ? x : y) // C-only min() in stdlib.h doesn't exist on gcc/clang?
 #define arrlen(arr) sizeof(arr) / sizeof(arr[0])
+//#define rol(num, bits) ((num << bits) | (num >> (32 - bits)))
+// inlined function instead of a macro to force it to pre-calculate num
+// slightly better codegen for msvc, but mingw/gcc/clang are unaffected
+static inline uint32_t rol(uint32_t num, uint32_t bits) {
+    return (num << bits) | (num >> (32 - bits));
+}
 
 // the sizeof(arg) includes the null terminator so i don't need to +1 these here
 #define is_opt_arg(arg, l_arg, s_arg) (!strncmp(arg, l_arg, sizeof(l_arg)) || !strncmp(arg, s_arg, sizeof(s_arg)))
@@ -105,7 +113,7 @@
 #define ERR_PKG_KEY_UNKNOWN  "Failed to determine PACKAGE encryption key!\n"
 #define ERR_PKG_BAD_CONFIG   "Invalid PACKAGE header configuration!\n"
 #define ERR_PKG_BAD_NAME     "Failed to read PACKAGE file name!\n"
-#define ERR_PKG_FILE_READ    "Failed to read PACKAGE file data!\n"
+#define ERR_PKG_FILE_READ    "Failed to read PACKAGE file data! Is the file truncated?\n"
 #define ERR_PKG_FILE_WRITE   "Failed to write output file data!\n"
 #define ERR_PKG_PATH_LEN     "File output path is too long!\n"
 #define ERR_PKG_FILE_OPEN    "Failed to open the output file! Is it in a read-only location?\n"
@@ -118,3 +126,5 @@
 #define WARN_PKG_BAD_DRM_KS  "Failed to read PACKAGE keystore!\n"
 #define WARN_PKG_KS_ENCRYPT  "PACKAGE keystores currently cannot be signed!\n"
 #define WARN_PKG_BAD_DRMKEY  "Keystore PACKAGE key is invalid! Attempting common keys...\n"
+
+#endif

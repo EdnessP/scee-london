@@ -1,7 +1,9 @@
 // Written by Edness   2024-09-17 - 2025-10-08
-#pragma once
+#ifndef _DECOMPRESS_H_
+#define _DECOMPRESS_H_
 #include <stdint.h>
 #include <stdbool.h>
+#include "defs.h"
 
 //#if defined(__APPLE__)
 //    #include <zlib.h>
@@ -62,3 +64,5 @@ static bool decompress_chunk(z_stream *mz, uint8_t **buf, uint32_t *size) {
 
     return true;
 }
+
+#endif
