@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see https://www.gnu.org/licenses/.
 
-// Written by Edness   2024-07-13 - 2025-12-22
+// Written by Edness   2024-07-13 - 2026-05-07
 
 #define VERSION "v1.4.1"
 #ifndef BUILDDATE
@@ -106,6 +106,7 @@ static void endian_swap_keystore(uint32_t *keystore) {
     // compiling on BE archs but i think it works anyway
     for (int i = 0; i < KS_CHUNKS; i++)
         ks.i[i] = get_32be(ks.c, i << 2);
+    // clang is smart enough to optimise this with bswap
 }
 
 
@@ -202,7 +203,8 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
     }
     flags = read_16be(hdr.c, &hdr_offs);
     // bit 0 is a 64-bit integer flag
-    size = (flags & 0x1) ? 0x4 : 0x8;
+    size = (flags & 0x1) ? 0x4 : 0x8; // (!(flags & 0x1) + 1) << 2;
+    // this would be more "optimal" if it weren't for that negation
     // bits 1 and 2 are always set?  the rest are always zero?
     if ((flags & ~0x1) != 0x6) {
         // better optimised than what compilers make of the check
@@ -237,6 +239,7 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
     z_stream mz = {0};
 
     pkg->mz = &mz;
+    pkg->compressed = false; // already is 0 but makes visual studio happy
 
     mz_buf = (uint8_t *)malloc(MAX_DEC_SIZE);
     if (!mz_buf) {
@@ -249,8 +252,6 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
         uint32_t name_hash;
         uint64_t file_offs, file_size;
         uint32_t file_hdr, dec_size;
-
-        pkg->compressed = false;
 
 
         /////////////////////////////////////////
@@ -301,6 +302,8 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
             if (file_hdr == ID_ZLIB || file_hdr == ID_ERDA) {
                 tmp_offs += 0x4;
 
+                // maybe this should be a part of the above check, in case of a
+                // false positive "ZLIB"/"ERDA" header? (none known yet though)
                 if (read_32be(tmp.c, &tmp_offs) != 0x1) {
                     print_err(ERR_ZLIB_BAD_CONFIG);
                     goto fail;
@@ -340,6 +343,7 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
                 print_err(ERR_ZLIB_DECOMPRESS);
                 goto fail;
             }
+            pkg->compressed = false;
             inflate_end(&mz);
         }
         fclose(pkg->fp_out);

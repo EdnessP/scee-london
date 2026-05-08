@@ -8,7 +8,7 @@
 // not using T() (L"") because it can be either UTF-16 or UTF-32
 #define u(text) u ## text // UTF-16 text (u""), only for Windows
 #define MACRO(...) do { __VA_ARGS__ } while (false)
-#define bswap(num) (num >> 24 | num >> 8 & 0xFF00 | (num & 0xFF00) << 8 | (num & 0xFF) << 24)
+#define bswap(num) (num >> 24 | num >> 8 & 0xFF00 | (num & 0xFF00) << 8 | num << 24)
 #define min(x, y) (x < y ? x : y) // C-only min() in stdlib.h doesn't exist on gcc/clang?
 #define arrlen(arr) sizeof(arr) / sizeof(arr[0])
 //#define rol(num, bits) ((num << bits) | (num >> (32 - bits)))
