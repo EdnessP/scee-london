@@ -223,8 +223,9 @@ static inline void hash_keystore(sha_t *sha, uint32_t *keystore) {
 }
 
 
+// hashes ~0.5% of the file but in a pretty interesting pattern
 static bool hash_file(sha_t *sha, FILE *fp, int64_t file_size) {
-    int64_t hash_size;
+    int64_t hash_size, file_pos;
 
     sha1_init_fp(sha);
     fseek(fp, 0x0, SEEK_SET);
@@ -232,11 +233,13 @@ static bool hash_file(sha_t *sha, FILE *fp, int64_t file_size) {
     if (!sha1_update_fp(sha, fp, hash_size))
         return false;
     // the loop below is only done for DLC, not for PKD
-    while (ftell(fp) + 0x3FC00 < file_size) {
+    file_pos = hash_size + 0x3FC00;
+    while (file_pos < file_size) {
         fseek(fp, 0x3FC00, SEEK_CUR);
-        hash_size = min(0x400, file_size - ftell(fp));
+        hash_size = min(0x400, file_size - file_pos);
         if (!sha1_update_fp(sha, fp, hash_size))
             return false;
+        file_pos += hash_size + 0x3FC00;
     }
     sha1_end_fp(sha);
 
@@ -397,7 +400,7 @@ static bool verify_keystore(drm_t *drm) {
 }
 
 
-static bool encrypt_keystore(drm_t* drm) {
+static bool encrypt_keystore(drm_t *drm) {
     // see decrypt_keystore above for docs
     uint32_t psid_hash[5] = {0};
     sha_t sha;

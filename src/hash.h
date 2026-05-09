@@ -179,6 +179,7 @@ static inline void sha1_32(sha_t *sha, uint32_t *buf, uint64_t size) {
 //////////////
 
 static inline void sha1_transform_fp(sha_t *sha) {
+    // should also be skipped on BE platfs but w/e
     for (int i = 0; i < 0x10; i++)
         sha->buf_32[i] = bswap(sha->buf_32[i]);
     sha1_transform(sha);
@@ -217,13 +218,13 @@ static bool sha1_update_fp(sha_t *sha, FILE *fp, uint64_t size) {
 static void sha1_end_fp(sha_t *sha) {
     int i = sha->size >> 2 & 0xF;
     sha->size <<= 3; // bits
-    int j = sha->size & 0x1F;
+    int j = sha->size & 0x1F; // 0x18
 
     sha->buf_32[i] = (sha->buf_32[i] & ((1 << j) - 1)) | (0x80 << j);
     i++;
 
-    for (int k = 0; k < i; k++)
-        sha->buf_32[k] = bswap(sha->buf_32[k]);
+    for (j = 0; j < i; j++)
+        sha->buf_32[j] = bswap(sha->buf_32[j]);
 
     if (i > 0xE) {
         for (; i < 0x10; i++)

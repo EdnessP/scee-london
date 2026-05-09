@@ -35,7 +35,7 @@ typedef union {
 } buf_t;
 
 
-static inline int64_t get_filesize(FILE* fp) {
+static inline int64_t get_filesize(FILE *fp) {
     fseek(fp, 0x0, SEEK_END);
     return ftell(fp);
 }
