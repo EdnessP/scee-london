@@ -10,6 +10,7 @@ if command -v darling; then
     # the prebuilt version of Darling was based on a Darwin kernel too old
     # extract Xcode 12.5.1 https://github.com/bitcoin-core/apple-sdk-tools
     # because the version xcode-select --install gives is too old (9.0.0)
+    # (script likely not needed? unxip threw some warns but should be fine)
     # (see build_macos.sh for which dirs you need for minimal extraction)
     # one upside of v9 is it generates significantly less empty space tho
     darling shell ./build_macos.sh darling

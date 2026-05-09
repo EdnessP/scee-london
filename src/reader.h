@@ -1,10 +1,11 @@
-// Written by Edness   2024-07-29 - 2025-11-28
+// Written by Edness   2024-07-29 - 2026-05-08
 #ifndef _READER_H_
 #define _READER_H_
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include "defs.h"
+#include "decompress.h"
 
 #define NAME_LEN 0x100
 #define BUF_SIZE 0x8
@@ -33,11 +34,13 @@ typedef union {
     uint8_t *c;
 } buf_t;
 
-typedef union {
-    uint32_t *i;
-    uint8_t *c;
-} ks_t;
 
+static inline int64_t get_filesize(FILE* fp) {
+    fseek(fp, 0x0, SEEK_END);
+    return ftell(fp);
+}
+// dont question why this is here, i made this thing way too brittle, oops
+#include "decrypt.h"
 
 //////////////////
 // FILE READERS //

@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see https://www.gnu.org/licenses/.
 
-// Written by Edness   2024-07-13 - 2026-05-07
+// Written by Edness   2024-07-13 - 2026-05-09
 
-#define VERSION "v1.4.1"
+#define VERSION "v1.4.2"
 #ifndef BUILDDATE
     // shoudn't be an issue if you're using the provided build scripts
     #error Please pre-define the current date in ISO 8601/RFC 3339
@@ -32,10 +32,10 @@
 
 #include "defs.h"
 
+#include "reader.h"
 #include "decompress.h"
 #include "decrypt.h"
 #include "hash.h"
-#include "reader.h"
 
 #define ID_PACKAGE 0x204547414B434150
 #define ID_ZLIB 0x42494C5A
@@ -83,30 +83,13 @@ static FILE *create_file(const path_t *base_path, uint8_t *file_path) {
         i++;
     }
 
-    fp_out = fopen(out_path, "wb");
+    fp_out = fopen(out_path, "w+b");
     if (!fp_out) {
         print_err(ERR_PKG_FILE_OPEN);
         return NULL; // technically not needed since fp_out is already NULL
     }
 
     return fp_out;
-}
-
-
-static inline int64_t get_filesize(FILE *fp) {
-    fseek(fp, 0x0, SEEK_END);
-    return ftell(fp);
-}
-
-
-static void endian_swap_keystore(uint32_t *keystore) {
-    //ks_t ks = {.c = keystore};
-    ks_t ks = {NULL}; ks.i = keystore;
-    // ensure it's in big endian, should be skipped from
-    // compiling on BE archs but i think it works anyway
-    for (int i = 0; i < KS_CHUNKS; i++)
-        ks.i[i] = get_32be(ks.c, i << 2);
-    // clang is smart enough to optimise this with bswap
 }
 
 
@@ -128,6 +111,8 @@ static bool read_keystore(FILE *fp, uint32_t *keystore) {
 static bool write_keystore(FILE *fp, uint32_t *keystore) {
 
     endian_swap_keystore(keystore);
+
+    fseek(fp, 0x0, SEEK_END);
     //if (fwrite(keystore, 0x4, KS_CHUNKS, fp) != KS_CHUNKS)
     if (!fwrite(keystore, KS_CHUNKS << 2, 1, fp)) {
         print_err(ERR_PKG_FILE_WRITE);
@@ -139,10 +124,12 @@ static bool write_keystore(FILE *fp, uint32_t *keystore) {
 
 
 static bool dump_package(pkg_t *pkg, drm_t *drm, const path_t *out_path) {
+    bool encrypt = false;
     int64_t size;
 
     pkg->fp_out = create_file(out_path, NULL);
     if (!pkg->fp_out) goto fail;
+    drm->fp = pkg->fp_out;
 
     size = get_filesize(pkg->fp_in);
     if (pkg->is_dlc) size -= 0x100;
@@ -151,11 +138,14 @@ static bool dump_package(pkg_t *pkg, drm_t *drm, const path_t *out_path) {
         // encrypt with the zero-xtea key if needed (TODO: improve?)
         pkg->key = pkg->is_dlc ? drm->drm_key : drm_keys[arrlen(drm_keys) - 1];
         pkg->encrypted = true;
+        encrypt = true;
     }
 
     if (!write_buffer(pkg, 0x0, size)) goto fail;
 
-    if (pkg->is_dlc && !write_keystore(pkg->fp_out, drm->keystore))
+    // keystore can only be finalised here because of the file hash
+    if (pkg->is_dlc && (encrypt && !encrypt_keystore(drm))
+        || !write_keystore(pkg->fp_out, drm->keystore))
         goto fail;
 
     fclose(pkg->fp_out);
@@ -390,6 +380,7 @@ static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const 
     }
 
     if (pkg.encrypted) {
+        drm->fp = fp_in;
         if (pkg.is_dlc) {
             pkg.is_dlc = decrypt_keystore(drm);
             if (!pkg.is_dlc && drm->has_psid)
@@ -405,7 +396,7 @@ static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const 
         }
     }
     else if (pkg.is_dlc && dump_only) {
-        pkg.is_dlc = encrypt_keystore(drm);
+        pkg.is_dlc = verify_keystore(drm);
         if (!pkg.is_dlc && drm->has_psid)
             print_warn(WARN_PKG_BAD_DRM_KS);
     }

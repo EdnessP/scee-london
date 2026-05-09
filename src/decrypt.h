@@ -1,10 +1,11 @@
-// Written by Edness   2024-07-13 - 2025-12-20
+// Written by Edness   2024-07-13 - 2026-05-09
 #ifndef _DECRYPT_H_
 #define _DECRYPT_H_
 #include <stdint.h>
 #include <stdbool.h>
 #include "defs.h"
 #include "hash.h"
+#include "reader.h"
 
 #define NO_ALLOCS
 #define HAVE_C99INCLUDES
@@ -26,6 +27,7 @@ typedef struct {
     uint32_t drm_key[4]; // final .PKG.DRM key
     uint32_t keystore[KS_CHUNKS];
     bool has_psid;
+    FILE *fp;
 } drm_t;
 
 
@@ -214,10 +216,39 @@ static uint32_t const *get_package_key(drm_t *drm, const uint64_t target_hdr) {
 
 // purely to not have to copy the same thing over and over again
 static inline void hash_keystore(sha_t *sha, uint32_t *keystore) {
-    sha1_init(sha);
-    sha1_update(sha, &keystore[0x1D], 0x23); // 0x74~x100 (0x8C bytes)
-    sha1_update(sha, &keystore[0x00], 0x18); // 0x00~0x60 (0x60 bytes)
-    sha1_end(sha);
+    sha1_init_32(sha);
+    sha1_update_32(sha, &keystore[0x1D], 0x23); // 0x74~x100 (0x8C bytes)
+    sha1_update_32(sha, &keystore[0x00], 0x18); // 0x00~0x60 (0x60 bytes)
+    sha1_end_32(sha);
+}
+
+
+static bool hash_file(sha_t *sha, FILE *fp, int64_t file_size) {
+    int64_t hash_size;
+
+    sha1_init_fp(sha);
+    fseek(fp, 0x0, SEEK_SET);
+    hash_size = min(0x10000, file_size);
+    if (!sha1_update_fp(sha, fp, hash_size))
+        return false;
+    // the loop below is only done for DLC, not for PKD
+    while (ftell(fp) + 0x3FC00 < file_size) {
+        fseek(fp, 0x3FC00, SEEK_CUR);
+        hash_size = min(0x400, file_size - ftell(fp));
+        if (!sha1_update_fp(sha, fp, hash_size))
+            return false;
+    }
+    sha1_end_fp(sha);
+
+    return true;
+}
+
+
+// this should be skipped on BE platforms, which i did previously
+// with get_32be but that didn't optimise nearly as well as bswap
+static void endian_swap_keystore(uint32_t *keystore) {
+    for (int i = 0; i < KS_CHUNKS; i++)
+        keystore[i] = bswap(keystore[i]);
 }
 
 
@@ -256,7 +287,7 @@ static bool decrypt_keystore(drm_t *drm) {
     // 0x00~0x04: 00000000, 007F0000 in universal DLC, other values for PKD? flags/state?
     // 0x04~0x5F: unk (file hash related?) (used for <1.00 and starts at 0x02?)
     // 0x5F~0x60: 0x14 (XTEA rounds? blank for PKD keystores)
-    // 0x60~0x74: wraparound SHA-1 of 0x74~0x60 (0x74~0x100 + 0x00~0x60)
+    // 0x60~0x74: wraparound SHA-1 of keystore 0x74~0x60 (0x74~0x100 + 0x00~0x60)
     // 0x74~0x84: F33964A9 46BD983F 6B1B6306 73E79E0B (accessed before decrypting the actual file?)
     // 0x84~0x98: SHA-1 of encrypted file (0x10000 for all, seek +0x3FC00 and read 0x400 until EOF for DLC)
     // 0x98~0x9C: 0301FF01, 05010000 for PKD (flags? 1st byte 03/05 is used for some drm state?)
@@ -283,10 +314,10 @@ static bool decrypt_keystore(drm_t *drm) {
     // (also of note is a later function that derives the final XTEA key checks if this isn't -1 either,
     // so psid_hash in that case should be initialised to -1 as well, but during init only all 0 passes)
     if (drm->keystore[0x31] || drm->keystore[0x32] || drm->keystore[0x33] || drm->keystore[0x34] || drm->keystore[0x35]) {
-        sha1(&sha, drm->psid, 0x4); // PSID hash is used for XTEA key decryption
+        sha1_32(&sha, drm->psid, 0x4); // PSID hash is used for XTEA key decryption
         sha1_copy(&sha, psid_hash);
         // hashes the result again for v0.05+ (not v1.05+, typo/bug?)
-        sha1(&sha, psid_hash, 0x5); // PSID hash-hash is stored in the keystore
+        sha1_32(&sha, psid_hash, 0x5); // PSID hash-hash is stored in the keystore
         if (!sha1_compare(&sha, &drm->keystore[0x31])) // 0xC4~0xD8
             return false;
     }
@@ -295,34 +326,21 @@ static bool decrypt_keystore(drm_t *drm) {
     // but since the keystores have a seemingly constant zero length SHA-1
     // at 0x9C [0x27], might as well just use that (and hope for the best)
     // (almost identical to the function to hash the file for 0x84 [0x21])
-    sha1_init(&sha); sha1_end(&sha);
+    sha1_init_32(&sha); sha1_end_32(&sha);
     if (!sha1_compare(&sha, &drm->keystore[0x27])) // 0x9C~0xB0
         return false;
 
-    /*
-    // proof of concept for verifying the file hash at 0x84
-    file_size = get_filesize(pkg->fp_in) - 0x100;
-    hash_size = min(0x10000, file_size);
-    sha1_init(&sha);
-    fseek(pkg->fp_in, 0x0, SEEK_SET);
-    sha1_update_fp(&sha, pkg->fp_in, hash_size);
-    // the loop below is only done for DLC, not for PKD
-    while (ftell(pkg->fp_in) + 0x3FC00 < file_size) {
-        fseek(pkg->fp_in, 0x3FC00, SEEK_CUR);
-        hash_size = min(0x400, file_size - ftell(pkg->fp_in))
-        sha1_update_fp(&sha, pkg->fp_in, hash_size);
-    }
-    sha1_end_fp(&sha);
-    if (!sha1_compare(&sha, &drm->keystore[0x21])) // 0x84~0x98
-        return false;
+    // verify SHA-1 of the actual file data
     // the file hash both from the SHA-1 state and at 0x84 are
     // used to XOR the final XTEA key which cancels itself out
-    */
+    if (!hash_file(&sha, drm->fp, get_filesize(drm->fp) - 0x100)
+        || !sha1_compare(&sha, &drm->keystore[0x21])) // 0x84~0x98
+        return false;
 
-    sha1_init(&sha);
-    sha1_update(&sha, psid_hash, 0x5);
-    sha1_update(&sha, &drm->keystore[0x27], 0x5); // 0x9C~0xB0
-    sha1_end(&sha);
+    sha1_init_32(&sha);
+    sha1_update_32(&sha, psid_hash, 0x5);
+    sha1_update_32(&sha, &drm->keystore[0x27], 0x5); // 0x9C~0xB0
+    sha1_end_32(&sha);
     // result is also used to decrypt the final XTEA key
     // (unsure whether or not to bswap here already tho)
     drm->keystore[0x2D] ^= sha.hash[0]; // 0xB4~0xC4
@@ -354,11 +372,9 @@ static bool decrypt_keystore(drm_t *drm) {
 }
 
 
-static bool encrypt_keystore(drm_t *drm) {
+static bool verify_keystore(drm_t *drm) {
     // see decrypt_keystore above for docs
-    uint32_t psid_hash[5] = {0};
     sha_t sha;
-
 
     if (drm->keystore[0x3F] != ID_SDRM || drm->keystore[0x3E] != 0x00FE0601) // || drm->keystore[0x2C] || drm->keystore[0x00]
         return false;
@@ -375,18 +391,32 @@ static bool encrypt_keystore(drm_t *drm) {
     drm->drm_key[2] = bswap(drm->keystore[0x2F]);
     drm->drm_key[3] = bswap(drm->keystore[0x30]);
 
+    print_warn(WARN_PKG_KS_ENCRYPT);
+
+    return true;
+}
+
+
+static bool encrypt_keystore(drm_t* drm) {
+    // see decrypt_keystore above for docs
+    uint32_t psid_hash[5] = {0};
+    sha_t sha;
+
+    if (!hash_file(&sha, drm->fp, get_filesize(drm->fp)))
+        return false;
+    sha1_copy(&sha, &drm->keystore[0x21]); // 0x84~0x98
 
     if (drm->has_psid) {
-        sha1(&sha, drm->psid, 0x4);
+        sha1_32(&sha, drm->psid, 0x4);
         sha1_copy(&sha, psid_hash);
-        sha1(&sha, psid_hash, 0x5);
+        sha1_32(&sha, psid_hash, 0x5);
         sha1_copy(&sha, &drm->keystore[0x31]); // 0xC4~0xD8
     }
 
-    sha1_init(&sha);
-    sha1_update(&sha, psid_hash, 0x5);
-    sha1_update(&sha, &drm->keystore[0x27], 0x5); // 0x9C~0xB0
-    sha1_end(&sha);
+    sha1_init_32(&sha);
+    sha1_update_32(&sha, psid_hash, 0x5);
+    sha1_update_32(&sha, &drm->keystore[0x27], 0x5); // 0x9C~0xB0
+    sha1_end_32(&sha);
 
     drm->keystore[0x2D] ^= sha.hash[0]; // 0xB4~0xC4
     drm->keystore[0x2E] ^= sha.hash[1];
@@ -397,7 +427,7 @@ static bool encrypt_keystore(drm_t *drm) {
     sha1_copy(&sha, &drm->keystore[0x18]); // 0x60~0x74
 
 
-    print_warn(WARN_PKG_KS_ENCRYPT);
+    //print_warn(WARN_PKG_KS_ENCRYPT); // printed in verify above
     // the original private key is unlikely to ever be discovered
     // so instead maybe create our own RSA priv/pub key pairs and
     // patch them into keys.edat? requires resigning all DLC then
