@@ -490,12 +490,12 @@ int main(int argc, path_t **argv) {
                 //sscanf(key, "%08X", &psid[j]);
                 uint32_t segment = 0x00000000;
 
-                for (int l = 0; l < 8; k++) {
+                for (int l = 0; l < 8; l++) {
                     uint8_t nybble;
 
-                    if (key[k] == ' ') // check \t\r\n too? powershell can give \n
-                        continue;
-                    else if (key[k] >= '0' && key[k] <= '9')
+                    while (key[k] == ' ') k++; // check \t\r\n too? powershell can pass \n
+
+                    if (key[k] >= '0' && key[k] <= '9')
                         nybble = key[k] - '0';
                     else if (key[k] >= 'A' && key[k] <= 'F')
                         nybble = key[k] - 'A' + 10;
@@ -506,7 +506,7 @@ int main(int argc, path_t **argv) {
                         goto fail;
                     }
 
-                    l++;
+                    k++;
                     segment <<= 4;
                     segment |= nybble;
                 }
