@@ -414,7 +414,7 @@ static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const 
         "Usage:  ." PATH_SEP_S "scee_london  \"" HELP_USAGE_IN "\"  [options]\n" \
         "Options:\n" \
         "   -o | --output  <str>  \"" HELP_USAGE_OUT "\"\n" \
-        "   -k | --drmkey  <str>  \"0123456789ABCDEF 0123456789ABCDEF\"\n" \
+        "   -k | --drmkey  <str>  \"0123456789ABCDEF FEDCBA9876543210\"\n" \
         "   -d | --dump           Only decrypt or encrypt PACKAGE file\n" \
     ); \
     print_err(__VA_ARGS__); \
@@ -459,8 +459,7 @@ int main(int argc, path_t **argv) {
 
 
     for (int i = 2; i < argc; i++) {
-        // another option for plain pkd-pkf decrypt (or recrypt)
-        // or alternatively an {enc|dec|rec} switch at the start
+
         if (is_opt_arg(argv[i], "--dump", "-d")) {
             dump_only = true;
         }
@@ -493,7 +492,7 @@ int main(int argc, path_t **argv) {
                 for (int l = 0; l < 8; l++) {
                     uint8_t nybble;
 
-                    while (key[k] == ' ') k++; // check \t\r\n too? powershell can pass \n
+                    while (key[k] == ' ') k++; // maybe check \t\r\n too? e.g. powershell can pass \n
 
                     if (key[k] >= '0' && key[k] <= '9')
                         nybble = key[k] - '0';
@@ -511,7 +510,6 @@ int main(int argc, path_t **argv) {
                     segment |= nybble;
                 }
                 drm.psid[j] = segment;
-                //printf("psid[%d] = 0x%08X\n", j, psid[j]);
             }
 
             // end of key validation
