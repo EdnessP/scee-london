@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-13 - 2026-05-08
+// Written by Edness   2024-07-13 - 2026-05-11
 #ifndef _DEFS_H_
 #define _DEFS_H_
 #include <stdio.h>
@@ -58,7 +58,7 @@ static inline uint32_t rol(uint32_t num, uint32_t bits) {
     #define fprintf(f, str, ...) fwprintf(f, u(str), ##__VA_ARGS__)
     #define snprintf(out, len, str, ...) swprintf(out, len, u(str), __VA_ARGS__)
     #define strncmp(str, cmp, ...) wcsncmp(str, u(cmp), __VA_ARGS__)
-    #define strnlen wcsnlen
+    //#define strnlen wcsnlen
     //#define puts _putws // in case i need to print a buffer on windows w/ this jank
     #define fputs(str, f) fputws(u(str), f)
     //#define perror _wperror
@@ -91,7 +91,7 @@ static inline uint32_t rol(uint32_t num, uint32_t bits) {
     //#define fprintf fprintf
     //#define snprintf snprintf
     //#define strncmp strncmp
-    //#define strnlen strnlen
+    ////#define strnlen strnlen
     //#define puts puts
     //#define fputs fputs
     //#define perror perror

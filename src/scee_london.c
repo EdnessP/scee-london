@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see https://www.gnu.org/licenses/.
 
-// Written by Edness   2024-07-13 - 2026-05-09
+// Written by Edness   2024-07-13 - 2026-05-11
 
 #define VERSION "v1.4.2"
 #ifndef BUILDDATE
@@ -414,7 +414,7 @@ static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const 
         "Usage:  ." PATH_SEP_S "scee_london  \"" HELP_USAGE_IN "\"  [options]\n" \
         "Options:\n" \
         "   -o | --output  <str>  \"" HELP_USAGE_OUT "\"\n" \
-        "   -k | --drmkey  <str>  0123456789ABCDEF0123456789ABCDEF\n" \
+        "   -k | --drmkey  <str>  \"0123456789ABCDEF 0123456789ABCDEF\"\n" \
         "   -d | --dump           Only decrypt or encrypt PACKAGE file\n" \
     ); \
     print_err(__VA_ARGS__); \
@@ -468,7 +468,7 @@ int main(int argc, path_t **argv) {
             const path_t *path = argv[++i];
 
             // it'll fail if it's too long during the extraction process
-            if (i >= argc || strnlen(path, FILENAME_MAX) <= 0) {
+            if (i >= argc || !path[0]) {
                 print_err_usage(ERR_BAD_ARG_OUT_PATH);
                 goto fail;
             }
@@ -478,9 +478,10 @@ int main(int argc, path_t **argv) {
         }
         else if (is_opt_arg(argv[i], "--drmkey", "-k")) {
             const path_t *key = argv[++i];
+            int k = 0;
 
-            // todo: allow longer inputs, filter out spaces
-            if (i >= argc || strnlen(key, 0x21) != 0x20) {
+            // key length upper bound validated a bit later
+            if (i >= argc) { //|| strnlen(key, 0x21) < 0x20
                 print_err_usage(ERR_BAD_ARG_DRMKEY);
                 goto fail;
             }
@@ -489,10 +490,12 @@ int main(int argc, path_t **argv) {
                 //sscanf(key, "%08X", &psid[j]);
                 uint32_t segment = 0x00000000;
 
-                for (int k = j * 8; k < j * 8 + 8; k++) {
+                for (int l = 0; l < 8; k++) {
                     uint8_t nybble;
 
-                    if (key[k] >= '0' && key[k] <= '9')
+                    if (key[k] == ' ') // check \t\r\n too? powershell can give \n
+                        continue;
+                    else if (key[k] >= '0' && key[k] <= '9')
                         nybble = key[k] - '0';
                     else if (key[k] >= 'A' && key[k] <= 'F')
                         nybble = key[k] - 'A' + 10;
@@ -503,12 +506,21 @@ int main(int argc, path_t **argv) {
                         goto fail;
                     }
 
+                    l++;
                     segment <<= 4;
                     segment |= nybble;
                 }
                 drm.psid[j] = segment;
                 //printf("psid[%d] = 0x%08X\n", j, psid[j]);
             }
+
+            // end of key validation
+            while (key[k] == ' ') k++;
+            if (key[k]) { // should be NULL
+                print_err_usage(ERR_BAD_ARG_DRMKEY);
+                goto fail;
+            }
+
             drm.has_psid = true;
         }
         else {
