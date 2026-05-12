@@ -317,10 +317,10 @@ static bool decrypt_keystore(drm_t *drm) {
     // (also of note is a later function that derives the final XTEA key checks if this isn't -1 either,
     // so psid_hash in that case should be initialised to -1 as well, but during init only all 0 passes)
     if (drm->keystore[0x31] || drm->keystore[0x32] || drm->keystore[0x33] || drm->keystore[0x34] || drm->keystore[0x35]) {
-        sha1_32(&sha, drm->psid, 0x4); // PSID hash is used for XTEA key decryption
+        sha1_32(&sha, drm->psid, 0x4); // PSID single pass hash is used for XTEA key decryption
         sha1_copy(&sha, psid_hash);
         // hashes the result again for v0.05+ (not v1.05+, typo/bug?)
-        sha1_32(&sha, psid_hash, 0x5); // PSID hash-hash is stored in the keystore
+        sha1_32(&sha, psid_hash, 0x5); // PSID double pass hash is stored in the keystore block
         if (!sha1_compare(&sha, &drm->keystore[0x31])) // 0xC4~0xD8
             return false;
     }
@@ -334,17 +334,24 @@ static bool decrypt_keystore(drm_t *drm) {
         return false;
 
     // verify SHA-1 of the actual file data
-    // the file hash both from the SHA-1 state and at 0x84 are
-    // used to XOR the final XTEA key which cancels itself out
     if (!hash_file(&sha, drm->fp, get_filesize(drm->fp) - 0x100)
         || !sha1_compare(&sha, &drm->keystore[0x21])) // 0x84~0x98
         return false;
+    // the file hash both from the SHA-1 state and at 0x84 are
+    // used to XOR the final XTEA key which cancels itself out
+    //drm->keystore[0x2D] ^= sha.hash[0] ^ drm->keystore[0x21]; // 0xB4~0xC4; 0x84~0x94
+    //drm->keystore[0x2E] ^= sha.hash[1] ^ drm->keystore[0x22];
+    //drm->keystore[0x2F] ^= sha.hash[2] ^ drm->keystore[0x23];
+    //drm->keystore[0x30] ^= sha.hash[3] ^ drm->keystore[0x24];
+    // (i don't understand what SCEE were trying to accomplish
+    // here, intentionally corrupt the key if the hash fails?)
 
+    // the single pass PSID hash and the empty hash are hashed
+    // together and used as the XOR key for the final XTEA key
     sha1_init_32(&sha);
     sha1_update_32(&sha, psid_hash, 0x5);
     sha1_update_32(&sha, &drm->keystore[0x27], 0x5); // 0x9C~0xB0
     sha1_end_32(&sha);
-    // result is also used to decrypt the final XTEA key
     // (unsure whether or not to bswap here already tho)
     drm->keystore[0x2D] ^= sha.hash[0]; // 0xB4~0xC4
     drm->keystore[0x2E] ^= sha.hash[1];

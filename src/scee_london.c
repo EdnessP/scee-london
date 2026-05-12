@@ -485,6 +485,8 @@ int main(int argc, path_t **argv) {
                 goto fail;
             }
 
+            // allows a 16 byte hex key input with any kind of spacing, even
+            // "01 23 45 67 89 AB CD EF  FE DC BA 98 76 54 32 10" would work
             for (int j = 0; j < 4; j++) {
                 //sscanf(key, "%08X", &psid[j]);
                 uint32_t segment = 0x00000000;
