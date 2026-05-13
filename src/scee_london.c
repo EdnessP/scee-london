@@ -551,6 +551,7 @@ int main(int argc, path_t **argv) {
     create_dirs(out_path); // recursively
     if (!dump_only) create_dir(out_path);
     // so hey, this then fixes the aforementioned multiple subdir issue for linux/macos too!
+    // UPDATE: TODO: -d/--dump is still broken in android because realpath corrupts it again
 #endif
     get_abspath(out_path, abs_path);
 
