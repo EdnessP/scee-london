@@ -44,22 +44,36 @@
 #define HDR_SIZE 0x18
 
 
+static void create_dirs(path_t *path) {
+    int i = 0;
+
+    // ignoring warnings given by create_dir(); fopen()
+    // will fail regardless if any serious issues arise
+    while (path[i]) {
+        if (is_path_sep(path[i])) {
+            path[i] = '\x00';
+            create_dir(path);
+            path[i] = PATH_SEP_C;
+        }
+        i++;
+    }
+}
+
+
 static FILE *create_file(const path_t *base_path, uint8_t *file_path) {
     path_t out_path[FILENAME_MAX];
     FILE *fp_out;
     int path_len;
-    int i = 0;
-
 
     if (file_path) {
 #if IS_POSIX
+        int i = 0;
         // PACKAGE filenames normally use backslashes
         while (file_path[i]) {
             if (file_path[i] == '\\')
                 file_path[i] = PATH_SEP_C;
             i++;
         }
-        i = 0;
 #endif
         path_len = snprintf(out_path, FILENAME_MAX, "%s" PATH_SEP_S STR, base_path, file_path);
     }
@@ -72,16 +86,7 @@ static FILE *create_file(const path_t *base_path, uint8_t *file_path) {
         return NULL;
     }
 
-    // ignoring warnings given by create_dir(); fopen()
-    // will fail regardless if any serious issues arise
-    while (out_path[i]) {
-        if (is_path_sep(out_path[i])) {
-            out_path[i] = '\x00';
-            create_dir(out_path);
-            out_path[i] = PATH_SEP_C;
-        }
-        i++;
-    }
+    create_dirs(out_path);
 
     fp_out = fopen(out_path, "w+b");
     if (!fp_out) {
@@ -539,6 +544,14 @@ int main(int argc, path_t **argv) {
     // due to linux/posix shenanigans, the initial absolute path has to be pregenerated here
     // because unlike windows, i can't easily generate a proper canonical path. if there are
     // multiple nonexistent subdirs user wants to dump this to, it'll only go to the 1st one
+#if IS_POSIX
+    // google's bionic (android) realpath implementation appears to be a bit broken?  unlike
+    // linux/macos which will give a canonical path up to the 1st nonexistent dir (as above)
+    // android just seems to give up if there's even one nonexistent dir and returns nothing
+    create_dirs(out_path); // recursively
+    if (!dump_only) create_dir(out_path);
+    // so hey, this then fixes the aforementioned multiple subdir issue for linux/macos too!
+#endif
     get_abspath(out_path, abs_path);
 
 

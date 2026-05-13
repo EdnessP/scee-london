@@ -225,7 +225,7 @@ static inline void hash_keystore(sha_t *sha, uint32_t *keystore) {
 
 // hashes ~0.5% of the file but in a pretty interesting pattern
 static bool hash_file(sha_t *sha, FILE *fp, int64_t file_size) {
-    int64_t hash_size, file_pos;
+    int64_t hash_size, file_pos; // avoids ftell() spam
 
     sha1_init_fp(sha);
     fseek(fp, 0x0, SEEK_SET);
@@ -334,8 +334,8 @@ static bool decrypt_keystore(drm_t *drm) {
         return false;
 
     // verify SHA-1 of the actual file data
-    if (!hash_file(&sha, drm->fp, get_filesize(drm->fp) - 0x100)
-        || !sha1_compare(&sha, &drm->keystore[0x21])) // 0x84~0x98
+    if (!hash_file(&sha, drm->fp, get_filesize(drm->fp) - 0x100) ||
+        !sha1_compare(&sha, &drm->keystore[0x21])) // 0x84~0x98
         return false;
     // the file hash both from the SHA-1 state and at 0x84 are
     // used to XOR the final XTEA key which cancels itself out
