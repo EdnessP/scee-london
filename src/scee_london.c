@@ -551,7 +551,7 @@ int main(int argc, path_t **argv) {
     // android just seems to give up if there's even one nonexistent dir and returns nothing
     if (dump_only) { // ugh this is so ugly
         path_t temp_path[FILENAME_MAX];
-        path_t* last_dir = strrchr(out_path, PATH_SEP_C);
+        path_t *last_dir = strrchr(out_path, PATH_SEP_C);
         if (last_dir) {
             *last_dir++ = '\x00';
             if (!get_abspath(out_path, temp_path))
@@ -571,7 +571,7 @@ int main(int argc, path_t **argv) {
     }
 #elif IS_WINDOWS
     if (!get_abspath(out_path, abs_path))
-        print_warn(WARN_ARG_ABSPATH);
+        print_warn(WARN_ARG_ABSPATH); // should never occur but makes gcc happy
 #endif
 
 
