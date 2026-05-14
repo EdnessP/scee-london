@@ -541,19 +541,38 @@ int main(int argc, path_t **argv) {
             : snprintf(out_path, FILENAME_MAX, "%s_out", argv[1]);
     }
 
+#if IS_POSIX
     // due to linux/posix shenanigans, the initial absolute path has to be pregenerated here
     // because unlike windows, i can't easily generate a proper canonical path. if there are
-    // multiple nonexistent subdirs user wants to dump this to, it'll only go to the 1st one
-#if IS_POSIX
+    // multiple nonexistent subdirs user wants to dump to, realpath only goes to the 1st one
+    create_dirs(out_path); // recursive, excluding final
     // google's bionic (android) realpath implementation appears to be a bit broken?  unlike
     // linux/macos which will give a canonical path up to the 1st nonexistent dir (as above)
     // android just seems to give up if there's even one nonexistent dir and returns nothing
-    create_dirs(out_path); // recursively
-    if (!dump_only) create_dir(out_path);
-    // so hey, this then fixes the aforementioned multiple subdir issue for linux/macos too!
-    // UPDATE: TODO: -d/--dump is still broken in android because realpath corrupts it again
+    if (dump_only) { // ugh this is so ugly
+        path_t temp_path[FILENAME_MAX];
+        path_t* last_dir = strrchr(out_path, PATH_SEP_C);
+        if (last_dir) {
+            *last_dir++ = '\x00';
+            if (!get_abspath(out_path, temp_path))
+                print_warn(WARN_ARG_ABSPATH);
+        }
+        else {
+            if (!get_abspath(".", temp_path))
+                print_warn(WARN_ARG_ABSPATH);
+            last_dir = out_path;
+        }
+        snprintf(abs_path, FILENAME_MAX, "%s" PATH_SEP_S "%s", temp_path, last_dir);
+    }
+    else {
+        create_dir(out_path); // single, makes final dir
+        if (!get_abspath(out_path, abs_path))
+            print_warn(WARN_ARG_ABSPATH);
+    }
+#elif IS_WINDOWS
+    if (!get_abspath(out_path, abs_path))
+        print_warn(WARN_ARG_ABSPATH);
 #endif
-    get_abspath(out_path, abs_path);
 
 
     if (!read_package(&drm, fp_in, abs_path, dump_only))
