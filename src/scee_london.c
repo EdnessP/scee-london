@@ -550,19 +550,20 @@ int main(int argc, path_t **argv) {
     // linux/macos which will give a canonical path up to the 1st nonexistent dir (as above)
     // android just seems to give up if there's even one nonexistent dir and returns nothing
     if (dump_only) { // ugh this is so ugly
-        path_t temp_path[FILENAME_MAX];
+        // also all of these dirs will still be leftover if it fails to validate the file...
+        path_t tmp_path[FILENAME_MAX];
         path_t *last_dir = strrchr(out_path, PATH_SEP_C);
         if (last_dir) {
             *last_dir++ = '\x00';
-            if (!get_abspath(out_path, temp_path))
+            if (!get_abspath(out_path, tmp_path))
                 print_warn(WARN_ARG_ABSPATH);
         }
         else {
-            if (!get_abspath(".", temp_path))
+            if (!get_abspath(".", tmp_path))
                 print_warn(WARN_ARG_ABSPATH);
             last_dir = out_path;
         }
-        snprintf(abs_path, FILENAME_MAX, "%s" PATH_SEP_S "%s", temp_path, last_dir);
+        snprintf(abs_path, FILENAME_MAX, "%s" PATH_SEP_S "%s", tmp_path, last_dir);
     }
     else {
         create_dir(out_path); // single, makes final dir
