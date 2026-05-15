@@ -149,8 +149,8 @@ static bool dump_package(pkg_t *pkg, drm_t *drm, const path_t *out_path) {
     if (!write_buffer(pkg, 0x0, size)) goto fail;
 
     // keystore can only be finalised here because of the file hash
-    if (pkg->is_dlc && (encrypt && !encrypt_keystore(drm))
-        || !write_keystore(pkg->fp_out, drm->keystore))
+    if (pkg->is_dlc && ((encrypt && !encrypt_keystore(drm))
+        || !write_keystore(pkg->fp_out, drm->keystore)))
         goto fail;
 
     fclose(pkg->fp_out);
