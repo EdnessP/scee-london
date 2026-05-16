@@ -49,7 +49,7 @@ static inline uint32_t rol(uint32_t num, uint32_t bits) {
     #define fseek _fseeki64
     #define ftell _ftelli64
     #define create_dir(path) CreateDirectoryW(path, NULL)
-    #define get_abspath(path, out) GetFullPathNameW(path, FILENAME_MAX, out, NULL)
+    #define abspath(path, out) GetFullPathNameW(path, FILENAME_MAX, out, NULL)
     // this should be a MACRO() but i need the return value to know if it's too long.
     // the fact that it's named swprintf and not snwprintf or something alike is also
     // confusing, but it does in fact need the buffer size, unlike sprintf or wprintf
@@ -84,7 +84,7 @@ static inline uint32_t rol(uint32_t num, uint32_t bits) {
     #define fseek fseeko
     #define ftell ftello
     #define create_dir(path) mkdir(path, 0755)
-    #define get_abspath realpath // i wish this was better
+    #define abspath realpath // i wish this was better
     // these identical redefs for consistency w/ the windows redefs don't
     // really harm anything, apart from osx having another snprintf redef
     // to __builtin___snprintf_chk in secure/_stdio.h (-Wmacro-redefined)
