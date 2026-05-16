@@ -125,7 +125,7 @@ static inline uint32_t rol(uint32_t num, uint32_t bits) {
 #define ERR_ZLIB_DECOMPRESS  "Failed to decompress PACKAGE file data!\n"
 #define ERR_ZLIB_MEMORY      "Out of decompressor buffer memory!\n"
 
-#define WARN_ARG_ABSPATH     "Failed to determine the full output path!\n\n"
+#define WARN_ARG_ABSPATH     "Failed to determine the full output path!\n"
 #define WARN_PKG_BAD_DRM_KS  "Failed to verify PACKAGE keystore!\n"
 #define WARN_PKG_KS_ENCRYPT  "PACKAGE keystores currently cannot be signed!\n"
 #define WARN_PKG_BAD_DRMKEY  "Keystore PACKAGE key is invalid! Attempting common keys...\n"

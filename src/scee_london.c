@@ -98,6 +98,44 @@ static FILE *create_file(const path_t *base_path, uint8_t *file_path) {
 }
 
 
+static void expand_abspath(path_t *out_path, const bool dump_only) {
+    path_t abs_path[FILENAME_MAX];
+#if IS_POSIX
+    // due to linux/posix shenanigans, the initial absolute path has to be pregenerated here
+    // because unlike windows, i can't easily generate a proper canonical path. if there are
+    // multiple nonexistent subdirs user wants to dump to, realpath only goes to the 1st one
+    create_dirs(out_path); // recursive, excluding final
+    // google's bionic (android) realpath implementation appears to be a bit broken?  unlike
+    // linux/macos which will give a canonical path up to the 1st nonexistent dir (as above)
+    // android just seems to give up if there's even one nonexistent dir and returns nothing
+    if (dump_only) { // ugh this is so ugly
+        path_t tmp_path[FILENAME_MAX];
+        path_t *last_dir = strrchr(out_path, PATH_SEP_C);
+        if (last_dir) {
+            *last_dir++ = '\x00';
+            if (!get_abspath(out_path, tmp_path))
+                print_warn(WARN_ARG_ABSPATH);
+        }
+        else {
+            if (!get_abspath(".", tmp_path))
+                print_warn(WARN_ARG_ABSPATH);
+            last_dir = out_path;
+        }
+        snprintf(abs_path, FILENAME_MAX, "%s" PATH_SEP_S "%s", tmp_path, last_dir);
+    }
+    else {
+        create_dir(out_path); // single, makes final dir
+        if (!get_abspath(out_path, abs_path))
+            print_warn(WARN_ARG_ABSPATH);
+    }
+#elif IS_WINDOWS
+    if (!get_abspath(out_path, abs_path))
+        print_warn(WARN_ARG_ABSPATH); // should never occur but makes gcc happy
+#endif
+    snprintf(out_path, FILENAME_MAX, "%s", abs_path);
+}
+
+
 static bool read_keystore(FILE *fp, uint32_t *keystore) {
     // 0x100 keystore by EOF + 0x12 min PACKAGE header
     if (get_filesize(fp) < 0x112)
@@ -360,7 +398,7 @@ fail:
 }
 
 
-static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const bool dump_only) {
+static bool read_package(drm_t *drm, FILE *fp_in, path_t *out_path, const bool dump_only) {
     uint64_t target_hdr = ID_PACKAGE;
     pkg_t pkg = {0};
 
@@ -406,6 +444,7 @@ static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const 
             print_warn(WARN_PKG_BAD_DRM_KS);
     }
 
+    expand_abspath(out_path, dump_only);
     return dump_only
         ? dump_package(&pkg, drm, out_path)
         : extract_package(&pkg, out_path);
@@ -426,7 +465,6 @@ static bool read_package(drm_t *drm, FILE *fp_in, const path_t *out_path, const 
 )
 
 int main(int argc, path_t **argv) {
-    path_t abs_path[FILENAME_MAX];
     path_t out_path[FILENAME_MAX];
     FILE *fp_in = NULL;
     drm_t drm = {0};
@@ -541,48 +579,14 @@ int main(int argc, path_t **argv) {
             : snprintf(out_path, FILENAME_MAX, "%s_out", argv[1]);
     }
 
-#if IS_POSIX
-    // due to linux/posix shenanigans, the initial absolute path has to be pregenerated here
-    // because unlike windows, i can't easily generate a proper canonical path. if there are
-    // multiple nonexistent subdirs user wants to dump to, realpath only goes to the 1st one
-    create_dirs(out_path); // recursive, excluding final
-    // google's bionic (android) realpath implementation appears to be a bit broken?  unlike
-    // linux/macos which will give a canonical path up to the 1st nonexistent dir (as above)
-    // android just seems to give up if there's even one nonexistent dir and returns nothing
-    if (dump_only) { // ugh this is so ugly
-        // also all of these dirs will still be leftover if it fails to validate the file...
-        path_t tmp_path[FILENAME_MAX];
-        path_t *last_dir = strrchr(out_path, PATH_SEP_C);
-        if (last_dir) {
-            *last_dir++ = '\x00';
-            if (!get_abspath(out_path, tmp_path))
-                print_warn(WARN_ARG_ABSPATH);
-        }
-        else {
-            if (!get_abspath(".", tmp_path))
-                print_warn(WARN_ARG_ABSPATH);
-            last_dir = out_path;
-        }
-        snprintf(abs_path, FILENAME_MAX, "%s" PATH_SEP_S "%s", tmp_path, last_dir);
-    }
-    else {
-        create_dir(out_path); // single, makes final dir
-        if (!get_abspath(out_path, abs_path))
-            print_warn(WARN_ARG_ABSPATH);
-    }
-#elif IS_WINDOWS
-    if (!get_abspath(out_path, abs_path))
-        print_warn(WARN_ARG_ABSPATH); // should never occur but makes gcc happy
-#endif
 
-
-    if (!read_package(&drm, fp_in, abs_path, dump_only))
+    if (!read_package(&drm, fp_in, out_path, dump_only))
         goto fail;
 
     //path_t print_buf[FILENAME_MAX];
     //int print_len = snprintf(print_buf, FILENAME_MAX, "\nDone! Output written to %s\n", abs_path));
     //WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), print_buf, print_len, NULL, NULL);
-    printf("\nDone! Output written to %s\n", abs_path);
+    printf("\nDone! Output written to %s\n", out_path);
 
     fclose(fp_in);
     return 0;
