@@ -287,20 +287,20 @@ static bool decrypt_keystore(drm_t *drm) {
         reverse_keystore(drm->keystore);
     }
 
-    // 0x00~0x04: 00000000, 007F0000 in universal DLC, other values for PKD? flags/state?
-    // 0x04~0x5F: unk (file hash related?) (used for <1.00 and starts at 0x02?)
+    // 0x00~0x04: 00000000 (007F0000 in universal DLC, other values for PKD?) flags/state?
+    // 0x04~0x5F: unk (file hash related?) (only used for <1.00 and starts at 0x02?)
     // 0x5F~0x60: 0x14 (XTEA rounds? blank for PKD keystores)
     // 0x60~0x74: wraparound SHA-1 of keystore 0x74~0x60 (0x74~0x100 + 0x00~0x60)
-    // 0x74~0x84: F33964A9 46BD983F 6B1B6306 73E79E0B (accessed before decrypting the actual file?)
+    // 0x74~0x84: F33964A9 46BD983F 6B1B6306 73E79E0B (accessed before decrypting the actual DLC file?)
     // 0x84~0x98: SHA-1 of encrypted file (0x10000 for all, seek +0x3FC00 and read 0x400 until EOF for DLC)
     // 0x98~0x9C: 0301FF01, 05010000 for PKD (flags? 1st byte 03/05 is used for some drm state?)
     // 0x9C~0xB0: zero length SHA-1 of some nonexistent companion file?
     // 0xB0~0xB4: 00000000
     // 0xB4~0xC4: encrypted XTEA key
     // 0xC4~0xD8: SHA-1 of the PSID hash (blank for PKD keystores and universal pkg drm)
-    // 0xD8~0xE8: 5D4C6E15 44015809 AC35AC16 575FC123 (padding?)
+    // 0xD8~0xE8: 5D4C6E15 44015809 AC35AC16 575FC123 (accessed before decrypting the actual PKD file?)
     // 0xE8~0xF8: ECD56806 BA777B7F 685A55ED 78114B9A (padding?)
-    // 0xF8~0xFC: 00FE0601 (version? v01.06, -512?)
+    // 0xF8~0xFC: 00FE0601 (version and size? v01.06, 0xFE not counting first two bytes)
     // 0xFC~x100: SDRM
 
     // is 0x3E keystore version? (v1.06 -512?) the game has code for various versions but only
