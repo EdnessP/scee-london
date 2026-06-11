@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-13 - 2026-05-11
+// Written by Edness   2024-07-13 - 2026-05-29
 #ifndef _DEFS_H_
 #define _DEFS_H_
 #include <stdio.h>
@@ -110,6 +110,7 @@ static inline uint32_t rol(uint32_t num, uint32_t bits) {
 #define ERR_BAD_ARGS         "Invalid argument: %s\n"
 #define ERR_BAD_ARG_DRMKEY   "Provided PACKAGE key is invalid!\n"
 #define ERR_BAD_ARG_INFILE   "Failed to open the input file!\n"
+#define ERR_BAD_ARG_INF_RO   "Failed to open the input file! Is it in a read-only location?\n"
 #define ERR_BAD_ARG_OUT_PATH "Provided output path is invalid!\n"
 
 #define ERR_PKG_KEY_UNKNOWN  "Failed to determine PACKAGE encryption key!\n"
@@ -126,6 +127,8 @@ static inline uint32_t rol(uint32_t num, uint32_t bits) {
 #define ERR_ZLIB_MEMORY      "Out of decompressor buffer memory!\n"
 
 #define WARN_ARG_ABSPATH     "Failed to determine the full output path!\n"
+#define WARN_ARG_PATH_MODE   "Output path will be ignored for Strip mode!\n"
+#define WARN_ARG_MULTI_MODE  "Both Dump and Strip modes are toggled! Prioritising Strip...\n"
 #define WARN_PKG_BAD_DRM_KS  "Failed to verify PACKAGE keystore!\n"
 #define WARN_PKG_KS_ENCRYPT  "PACKAGE keystores currently cannot be signed!\n"
 #define WARN_PKG_BAD_DRMKEY  "Keystore PACKAGE key is invalid! Attempting common keys...\n"

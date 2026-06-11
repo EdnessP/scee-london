@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see https://www.gnu.org/licenses/.
 
-// Written by Edness   2024-07-13 - 2026-05-11
+// Written by Edness   2024-07-13 - 2026-06-11
 
-#define VERSION "v1.4.2"
+#define VERSION "v1.4.3"
 #ifndef BUILDDATE
     // shoudn't be an issue if you're using the provided build scripts
     #error Please pre-define the current date in ISO 8601/RFC 3339
@@ -42,6 +42,10 @@
 #define ID_ERDA 0x41445245
 
 #define HDR_SIZE 0x18
+
+
+#define MODE_DUMP  0x1
+#define MODE_STRIP 0x2
 
 
 static void create_dirs(path_t *path) {
@@ -98,8 +102,9 @@ static FILE *create_file(const path_t *base_path, uint8_t *file_path) {
 }
 
 
-static void get_abspath(path_t *out_path, const bool dump_only) {
+static void get_abspath(path_t *out_path, const uint8_t mode) {
     path_t abs_path[FILENAME_MAX];
+
 #if IS_POSIX
     // due to linux/posix shenanigans, the initial absolute path has to be pregenerated here
     // because unlike windows, i can't easily generate a proper canonical path. if there are
@@ -108,7 +113,7 @@ static void get_abspath(path_t *out_path, const bool dump_only) {
     // google's bionic (android) realpath implementation appears to be a bit broken?  unlike
     // linux/macos which will give a canonical path up to the 1st nonexistent dir (as above)
     // android just seems to give up if there's even one nonexistent dir and returns nothing
-    if (dump_only) { // ugh this is so ugly
+    if (mode & MODE_DUMP) { // ugh this is so ugly
         path_t tmp_path[FILENAME_MAX];
         path_t *last_dir = strrchr(out_path, PATH_SEP_C);
         if (last_dir) {
@@ -132,6 +137,7 @@ static void get_abspath(path_t *out_path, const bool dump_only) {
     if (!abspath(out_path, abs_path))
         print_warn(WARN_ARG_ABSPATH); // should never occur but makes gcc happy
 #endif
+
     snprintf(out_path, FILENAME_MAX, "%s", abs_path);
 }
 
@@ -151,11 +157,11 @@ static bool read_keystore(FILE *fp, uint32_t *keystore) {
 }
 
 
-static bool write_keystore(FILE *fp, uint32_t *keystore) {
+static bool write_keystore(FILE *fp, uint32_t *keystore, const bool overwrite) {
 
     endian_swap_keystore(keystore);
 
-    fseek(fp, 0x0, SEEK_END);
+    fseek(fp, overwrite ? 0x100 : 0x0, SEEK_END);
     //if (fwrite(keystore, 0x4, KS_CHUNKS, fp) != KS_CHUNKS)
     if (!fwrite(keystore, KS_CHUNKS << 2, 1, fp)) {
         print_err(ERR_PKG_FILE_WRITE);
@@ -187,8 +193,8 @@ static bool dump_package(pkg_t *pkg, drm_t *drm, const path_t *out_path) {
     if (!write_buffer(pkg, 0x0, size)) goto fail;
 
     // keystore can only be finalised here because of the file hash
-    if (pkg->is_dlc && ((encrypt && !encrypt_keystore(drm))
-        || !write_keystore(pkg->fp_out, drm->keystore)))
+    if (pkg->is_dlc && ((encrypt && !encrypt_keystore(drm)) ||
+        !write_keystore(pkg->fp_out, drm->keystore, false)))
         goto fail;
 
     fclose(pkg->fp_out);
@@ -398,13 +404,16 @@ fail:
 }
 
 
-static bool read_package(drm_t *drm, FILE *fp_in, path_t *out_path, const bool dump_only) {
+static bool read_package(drm_t *drm, FILE *fp_in, path_t *out_path, const uint8_t mode) {
     uint64_t target_hdr = ID_PACKAGE;
     pkg_t pkg = {0};
 
-    dump_only // also prevents printing a triple-newline if it fails before extracting anything
-        ? printf("Dumping PACKAGE file...\n")
-        : printf("Reading PACKAGE file...\n");
+    if (mode & MODE_STRIP)
+        printf("\nEditing PACKAGE file...\n");
+    else if (mode & MODE_DUMP)
+        printf("\nDumping PACKAGE file...\n");
+    else
+        printf("\nReading PACKAGE file...\n");
 
     pkg.fp_in = fp_in;
 
@@ -438,38 +447,51 @@ static bool read_package(drm_t *drm, FILE *fp_in, path_t *out_path, const bool d
             return false;
         }
     }
-    else if (pkg.is_dlc && dump_only) {
+    else if (pkg.is_dlc && (mode & MODE_DUMP)) {
         pkg.is_dlc = verify_keystore(drm);
         if (!pkg.is_dlc && drm->has_psid)
             print_warn(WARN_PKG_BAD_DRM_KS);
     }
 
-    get_abspath(out_path, dump_only);
-    return dump_only
-        ? dump_package(&pkg, drm, out_path)
-        : extract_package(&pkg, out_path);
+    get_abspath(out_path, mode);
+
+    /*if (mode & MODE_STRIP)
+        return strip_package(drm);
+    else*/ if (mode & MODE_DUMP)
+        return dump_package(&pkg, drm, out_path);
+    else
+        return extract_package(&pkg, out_path);
 }
 
 
 // this used to get inlined all the time anyway, when it was a standalone function
 // (now it's a macro to allow for automatically converting it to wchar on windows)
-#define print_err_usage(...) MACRO( \
+#define print_usage(...) MACRO( \
     printf( \
-        "Usage:  ." PATH_SEP_S "scee_london  \"" HELP_USAGE_IN "\"  [options]\n" \
+        "\n" \
+        "\nUsage:  ." PATH_SEP_S "scee_london  \"" HELP_USAGE_IN "\"  [options]\n" \
         "Options:\n" \
         "   -o | --output  <str>  \"" HELP_USAGE_OUT "\"\n" \
         "   -k | --drmkey  <str>  \"0123456789ABCDEF FEDCBA9876543210\"\n" \
         "   -d | --dump           Only decrypt or encrypt PACKAGE file\n" \
+        "   -s | --strip          Only strip DRM key from PACKAGE file\n" \
     ); \
+)
+
+#define print_err_usage(...) MACRO( \
+    print_usage(); \
     print_err(__VA_ARGS__); \
 )
 
 int main(int argc, path_t **argv) {
     path_t out_path[FILENAME_MAX];
+    path_t **file_names = NULL;
     FILE *fp_in = NULL;
     drm_t drm = {0};
+    int files = 0;
 
-    bool has_out_path = false, dump_only = false;
+    uint8_t mode = 0x0;
+    bool has_out_path = false;
 
 #if IS_WINDOWS //#include <io.h>
     // huh, apparently _O_U8TEXT also just works? i thought wprintf
@@ -485,7 +507,7 @@ int main(int argc, path_t **argv) {
     printf(
         "SCEE London Studio PACKAGE tool\n"
         "Written by Edness   " VERSION "\n"
-        "2024-07-13 - " BUILDDATE "\n\n"
+        "2024-07-13 - " BUILDDATE "\n"
     );
 
 
@@ -494,17 +516,26 @@ int main(int argc, path_t **argv) {
         goto fail;
     }
 
-    fp_in = fopen(argv[1], "rb");
-    if (!fp_in) {
-        print_err_usage(ERR_BAD_ARG_INFILE);
-        goto fail;
-    }
+    file_names = (path_t **)malloc(argc * sizeof(path_t **));
 
+    for (int i = 1; i < argc; i++) {
 
-    for (int i = 2; i < argc; i++) {
+        if (is_opt_arg(argv[i], "--help", "-h")) {
+            print_usage();
+            goto fail;
+        }
+        else if (is_opt_arg(argv[i], "--dump", "-d")) {
+            if (mode & MODE_STRIP)
+                print_warn(WARN_ARG_MULTI_MODE);
+            mode |= MODE_DUMP;
+        }
+        else if (is_opt_arg(argv[i], "--strip", "-s")) {
+            if (mode & MODE_DUMP)
+                print_warn(WARN_ARG_MULTI_MODE);
+            mode |= MODE_STRIP;
 
-        if (is_opt_arg(argv[i], "--dump", "-d")) {
-            dump_only = true;
+            if (has_out_path)
+                print_warn(WARN_ARG_PATH_MODE);
         }
         else if (is_opt_arg(argv[i], "--output", "-o")) {
             const path_t *path = argv[++i];
@@ -514,6 +545,9 @@ int main(int argc, path_t **argv) {
                 print_err_usage(ERR_BAD_ARG_OUT_PATH);
                 goto fail;
             }
+
+            if (mode & MODE_STRIP)
+                print_warn(WARN_ARG_PATH_MODE);
 
             snprintf(out_path, FILENAME_MAX, "%s", path);
             has_out_path = true;
@@ -567,33 +601,60 @@ int main(int argc, path_t **argv) {
             drm.has_psid = true;
         }
         else {
-            print_err_usage(ERR_BAD_ARGS, argv[i]);
-            goto fail;
+            // allow multiple file inputs
+            fp_in = fopen(argv[i], "rb");
+            if (!fp_in) {
+                print_err_usage(ERR_BAD_ARGS, argv[i]);
+                goto fail;
+            }
+            file_names[files++] = argv[i];
+            fclose(fp_in); // determine correct mode later
         }
     }
 
-    if (!has_out_path) {
-        //snprintf(out_path, FILENAME_MAX, dump_only ? "%s.dmp" : "%s_out", argv[1]);
-        dump_only // would've preferred the above, but whatever (windows redefs jank)
-            ? snprintf(out_path, FILENAME_MAX, "%s.dmp", argv[1])
-            : snprintf(out_path, FILENAME_MAX, "%s_out", argv[1]);
+    for (int i = 0; i < files; i++) {
+
+        if (mode & MODE_STRIP) {
+            snprintf(out_path, FILENAME_MAX, "%s", file_names[i]);
+            fp_in = fopen(file_names[i], "r+b");
+            if (!fp_in) {
+                print_err_usage(ERR_BAD_ARG_INF_RO);
+                goto fail;
+            }
+        }
+        else {
+            if (!has_out_path) {
+                //snprintf(out_path, FILENAME_MAX, dump_only ? "%s.dmp" : "%s_out", argv[1]);
+                (mode & MODE_DUMP)
+                    ? snprintf(out_path, FILENAME_MAX, "%s.dmp", file_names[i])
+                    : snprintf(out_path, FILENAME_MAX, "%s_out", file_names[i]);
+            }
+            fp_in = fopen(file_names[i], "rb");
+            if (!fp_in) {
+                print_err_usage(ERR_BAD_ARG_INFILE);
+                goto fail;
+            }
+        }
+
+
+        if (!read_package(&drm, fp_in, out_path, mode))
+            goto fail;
+
+        //path_t print_buf[FILENAME_MAX];
+        //int print_len = snprintf(print_buf, FILENAME_MAX, "\nDone! Output written to %s\n", abs_path));
+        //WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), print_buf, print_len, NULL, NULL);
+        printf("\nDone! Output written to %s\n", out_path);
+
+        fclose(fp_in);
     }
 
-
-    if (!read_package(&drm, fp_in, out_path, dump_only))
-        goto fail;
-
-    //path_t print_buf[FILENAME_MAX];
-    //int print_len = snprintf(print_buf, FILENAME_MAX, "\nDone! Output written to %s\n", abs_path));
-    //WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), print_buf, print_len, NULL, NULL);
-    printf("\nDone! Output written to %s\n", out_path);
-
-    fclose(fp_in);
+    free(file_names);
     return 0;
 
 fail:
     if (fp_in)
         fclose(fp_in);
+    free(file_names);
 #if IS_WINDOWS
     // user might've drag-dropped it on the .EXE and thus won't see the error
     printf("\nPress any key to continue...\n");
@@ -604,3 +665,4 @@ fail:
 }
 
 #undef print_err_usage
+#undef print_usage
