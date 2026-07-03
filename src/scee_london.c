@@ -327,9 +327,9 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
 #if IS_POSIX
         int i = 0;
         // PACKAGE filenames normally use backslashes
-        while (file_path[i]) {
-            if (file_path[i] == '\\')
-                file_path[i] = PATH_SEP_C;
+        while (file_name[i]) {
+            if (file_name[i] == '\\')
+                file_name[i] = PATH_SEP_C;
             i++;
         }
 #endif
