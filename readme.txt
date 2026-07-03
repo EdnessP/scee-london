@@ -17,22 +17,25 @@ already existing tools.
 
 
 == Usage (Simple, Windows only) ==
-Drag and drop the PACKAGE file onto the .EXE file.
+Drag and drop the PACKAGE files onto the .EXE file.
 
 
 == Usage (Proper, Windows/Linux/macOS) ==
-Provide a path to a PACKAGE file, and optionally also a path to a chosen output
+Provide a path to the PACKAGE file(s), and optionally a path to a chosen output
 directory with -o or --output through a terminal or command line interface.
 Use -k or --drmkey to provide your PS3's OpenPSID for decrypting .DRM files.
 Use -d or --dump to just decrypt/encrypt the PACKAGE without extracting it.
+Use -s or --strip to remove the OpenPSID DRM key from the PACKAGE file.
+WARNING! Stripping the DRM key will modify the input file!
 
 Linux and macOS may require you to first run: sudo chmod +x scee_london
 macOS may also require: sudo xattr -d com.apple.quarantine scee_london
 after first moving it out of Downloads for it not to get quarantined.
+Shell expansion for multiple input files is also supported.
 
 
 == Shout-Outs ==
-Special shout-out to the friends, good folk and the community behind Redump.org
+Special shoutout to the friends and community behind Redump.info & No-Intro.org
 
 
 == Support ==

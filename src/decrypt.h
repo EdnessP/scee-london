@@ -50,7 +50,7 @@ static uint32_t rsa_modulus[KS_CHUNKS] = { // not const because BigDigits mpShif
 // Not applicable for decrypting with this tool, but for the sake of documentation
 // DanceStar (Everybody Dance) .PKG.EDAT DLC key: 9345AEDDCC96103FFA658AA3D3535AA0
 
-// Shout-out to the Redump.org community for making this possible
+// Shout-out to the Redump community for making this possible
 static const uint32_t drm_keys[][4] = {
     {0xE2AC48C5, 0x1C511D8E, 0x8158606D, 0x8086ED1D}, // SingStar (Europe) (Pack0.pkd)
     {0xD2229BCB, 0xE9D5207A, 0x88960EEB, 0x7A848797}, // SingStar (Europe) (Pack1.pkd)

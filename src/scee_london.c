@@ -44,8 +44,8 @@
 #define HDR_SIZE 0x18
 
 
-#define MODE_DUMP  0x1
-#define MODE_STRIP 0x2
+#define MODE_DUMP  0x01
+#define MODE_STRIP 0x10
 
 
 static void create_dirs(path_t *path) {
@@ -110,6 +110,7 @@ static void get_abspath(path_t *out_path, const uint8_t mode) {
     // because unlike windows, i can't easily generate a proper canonical path. if there are
     // multiple nonexistent subdirs user wants to dump to, realpath only goes to the 1st one
     create_dirs(out_path); // recursive, excluding final
+    /* no longer relevant since multi-input support?
     // google's bionic (android) realpath implementation appears to be a bit broken?  unlike
     // linux/macos which will give a canonical path up to the 1st nonexistent dir (as above)
     // android just seems to give up if there's even one nonexistent dir and returns nothing
@@ -128,15 +129,12 @@ static void get_abspath(path_t *out_path, const uint8_t mode) {
         }
         snprintf(abs_path, FILENAME_MAX, "%s" PATH_SEP_S "%s", tmp_path, last_dir);
     }
-    else {
+    else { */
+    if (!mode) // neither dump nor split needs this
         create_dir(out_path); // single, makes final dir
-        if (!abspath(out_path, abs_path))
-            print_warn(WARN_ARG_ABSPATH);
-    }
-#elif IS_WINDOWS
+#endif
     if (!abspath(out_path, abs_path))
         print_warn(WARN_ARG_ABSPATH); // should never occur but makes gcc happy
-#endif
 
     snprintf(out_path, FILENAME_MAX, "%s", abs_path);
 }
@@ -168,6 +166,17 @@ static bool write_keystore(FILE *fp, uint32_t *keystore, const bool overwrite) {
         return false;
     }
 
+    return true;
+}
+
+
+static bool strip_package(drm_t *drm) {
+    if (!verify_keystore(drm) || !encrypt_keystore(drm)) {
+        print_err(WARN_PKG_BAD_DRM_KS);
+        return false;
+    }
+    if (!write_keystore(drm->fp, drm->keystore, true))
+        return false;
     return true;
 }
 
@@ -409,7 +418,7 @@ static bool read_package(drm_t *drm, FILE *fp_in, path_t *out_path, const uint8_
     pkg_t pkg = {0};
 
     if (mode & MODE_STRIP)
-        printf("\nEditing PACKAGE file...\n");
+        printf("\nUpdating PACKAGE file...\n");
     else if (mode & MODE_DUMP)
         printf("\nDumping PACKAGE file...\n");
     else
@@ -455,9 +464,9 @@ static bool read_package(drm_t *drm, FILE *fp_in, path_t *out_path, const uint8_
 
     get_abspath(out_path, mode);
 
-    /*if (mode & MODE_STRIP)
+    if (mode & MODE_STRIP)
         return strip_package(drm);
-    else*/ if (mode & MODE_DUMP)
+    else if (mode & MODE_DUMP)
         return dump_package(&pkg, drm, out_path);
     else
         return extract_package(&pkg, out_path);
@@ -469,7 +478,12 @@ static bool read_package(drm_t *drm, FILE *fp_in, path_t *out_path, const uint8_
 #define print_usage(...) MACRO( \
     printf( \
         "\n" \
-        "\nUsage:  ." PATH_SEP_S "scee_london  \"" HELP_USAGE_IN "\"  [options]\n" \
+        "SCEE London Studio PS3 PACKAGE tool  Copyright (C) 2024-2026  Edness\n" \
+        "This program comes with ABSOLUTELY NO WARRANTY; This is free software,\n" \
+        "and you are welcome to redistribute it under certain conditions;\n" \
+        "See the included license.txt file or https://www.gnu.org/licenses/\n" \
+        "\n\n" \
+        "Usage:  ." PATH_SEP_S "scee_london  \"" HELP_USAGE_IN "\"  [options]\n" \
         "Options:\n" \
         "   -o | --output  <str>  \"" HELP_USAGE_OUT "\"\n" \
         "   -k | --drmkey  <str>  \"0123456789ABCDEF FEDCBA9876543210\"\n" \
@@ -516,8 +530,10 @@ int main(int argc, path_t **argv) {
         goto fail;
     }
 
-    file_names = (path_t **)malloc(argc * sizeof(path_t **));
 
+    file_names = (path_t **)malloc((argc - 1) * sizeof(path_t **));
+
+    // parse input arguments
     for (int i = 1; i < argc; i++) {
 
         if (is_opt_arg(argv[i], "--help", "-h")) {
@@ -612,6 +628,13 @@ int main(int argc, path_t **argv) {
         }
     }
 
+    if (!files) {
+        print_err_usage(ERR_NO_ARGS);
+        goto fail;
+    }
+
+
+    // parse input files
     for (int i = 0; i < files; i++) {
 
         if (mode & MODE_STRIP) {
@@ -623,19 +646,14 @@ int main(int argc, path_t **argv) {
             }
         }
         else {
-            if (!has_out_path) {
-                //snprintf(out_path, FILENAME_MAX, dump_only ? "%s.dmp" : "%s_out", argv[1]);
-                (mode & MODE_DUMP)
-                    ? snprintf(out_path, FILENAME_MAX, "%s.dmp", file_names[i])
-                    : snprintf(out_path, FILENAME_MAX, "%s_out", file_names[i]);
-            }
+            if (!has_out_path)
+                snprintf(out_path, FILENAME_MAX, "%s_out", file_names[i]);
             fp_in = fopen(file_names[i], "rb");
             if (!fp_in) {
                 print_err_usage(ERR_BAD_ARG_INFILE);
                 goto fail;
             }
         }
-
 
         if (!read_package(&drm, fp_in, out_path, mode))
             goto fail;
