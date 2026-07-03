@@ -425,11 +425,11 @@ static bool read_package(drm_t *drm, FILE *fp_in, path_t *out_path, path_t *base
     pkg_t pkg = {0};
 
     if (mode & MODE_STRIP)
-        printf("\nUpdating PACKAGE file...\n");
+        printf("\nUpdating PACKAGE file: %s\n", base_name);
     else if (mode & MODE_DUMP)
-        printf("\nDumping PACKAGE file...\n");
+        printf("\nDumping PACKAGE file: %s\n", base_name);
     else
-        printf("\nReading PACKAGE file...\n");
+        printf("\nReading PACKAGE file: %s\n", base_name);
 
     pkg.fp_in = fp_in;
 
