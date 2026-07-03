@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see https://www.gnu.org/licenses/.
 
-// Written by Edness   2024-07-13 - 2026-06-11
+// Written by Edness   2024-07-13 - 2026-07-03
 
 #define VERSION "v1.4.3"
 #ifndef BUILDDATE
@@ -64,26 +64,21 @@ static void create_dirs(path_t *path) {
 }
 
 
-static FILE *create_file(const path_t *base_path, uint8_t *file_path) {
+static FILE *create_file(const path_t *base_path, path_t *file_path) {
     path_t out_path[FILENAME_MAX];
     FILE *fp_out;
     int path_len;
 
-    if (file_path) {
 #if IS_POSIX
-        int i = 0;
-        // PACKAGE filenames normally use backslashes
-        while (file_path[i]) {
-            if (file_path[i] == '\\')
-                file_path[i] = PATH_SEP_C;
-            i++;
-        }
+    int i = 0;
+    // PACKAGE filenames normally use backslashes
+    while (file_path[i]) {
+        if (file_path[i] == '\\')
+            file_path[i] = PATH_SEP_C;
+        i++;
+    }
 #endif
-        path_len = snprintf(out_path, FILENAME_MAX, "%s" PATH_SEP_S STR, base_path, file_path);
-    }
-    else {
-        path_len = snprintf(out_path, FILENAME_MAX, "%s", base_path); //strnlen;
-    }
+    path_len = snprintf(out_path, FILENAME_MAX, "%s" PATH_SEP_S "%s", base_path, file_path);
 
     if (path_len < 0 || path_len >= FILENAME_MAX) { // swprintf returns -1 instead???
         print_err(ERR_PKG_PATH_LEN);
@@ -99,6 +94,22 @@ static FILE *create_file(const path_t *base_path, uint8_t *file_path) {
     }
 
     return fp_out;
+}
+
+
+static path_t *get_basename(path_t *file_name) {
+    path_t *base_name = file_name;
+    int i = 0;
+
+    //path_t *posix = strrchr(file_name, '/');
+    //path_t *windows = strrchr(file_name, '\\');
+    while (file_name[i]) {
+        if (is_path_sep(file_name[i]))
+            base_name = &file_name[i + 1];
+        i++;
+    }
+
+    return base_name;
 }
 
 
@@ -181,11 +192,11 @@ static bool strip_package(drm_t *drm) {
 }
 
 
-static bool dump_package(pkg_t *pkg, drm_t *drm, const path_t *out_path) {
+static bool dump_package(pkg_t *pkg, drm_t *drm, const path_t *out_path, path_t *base_name) {
     bool encrypt = false;
     int64_t size;
 
-    pkg->fp_out = create_file(out_path, NULL);
+    pkg->fp_out = create_file(out_path, base_name);
     if (!pkg->fp_out) goto fail;
     drm->fp = pkg->fp_out;
 
@@ -279,7 +290,7 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
     ////////////////
     // EXTRACTION //
     ////////////////
-    uint8_t *file_name = NULL;
+    path_t file_name[NAME_LEN];
     uint8_t _tmp[HDR_SIZE] = {0};
     buf_t tmp = {NULL}; tmp.c = _tmp;
     //buf_t tmp = {.c = _tmp};
@@ -306,9 +317,9 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
         // read file metadata and prepare data //
         /////////////////////////////////////////
         name_hash = read_32be(hdr.c, &hdr_offs);
-        name_size = read_str(hdr.c, &hdr_offs, &file_name);
+        name_size = read_str(hdr.c, &hdr_offs, file_name);
         //printf("%s = 0x%08X, jamcrc = 0x%08X\n", file_name, name_hash, crc32_jamcrc(file_name, name_size));
-        if (name_size < 1 || crc32_jamcrc(file_name, name_size) != name_hash) {
+        if (name_size < 1 || crc32_jamcrc(file_name) != name_hash) {
             print_err(ERR_PKG_BAD_NAME);
             goto fail;
         }
@@ -329,7 +340,7 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
         // one small downside is if the output path is too long, you won't see
         // how long the filename is to try and guess how many dirs to go back.
         // (but like anyone is gonna do that, longest path seen is ~135 chars)
-        printf("[%3d%%] Extracting: " STR "\n", hdr_offs * 100 / hdr_size, file_name);
+        printf("[%3d%%] Extracting: %s\n", hdr_offs * 100 / hdr_size, file_name);
 
 
         /////////////////////////////////////////
@@ -413,7 +424,7 @@ fail:
 }
 
 
-static bool read_package(drm_t *drm, FILE *fp_in, path_t *out_path, const uint8_t mode) {
+static bool read_package(drm_t *drm, FILE *fp_in, path_t *out_path, path_t *base_name, const uint8_t mode) {
     uint64_t target_hdr = ID_PACKAGE;
     pkg_t pkg = {0};
 
@@ -467,7 +478,7 @@ static bool read_package(drm_t *drm, FILE *fp_in, path_t *out_path, const uint8_
     if (mode & MODE_STRIP)
         return strip_package(drm);
     else if (mode & MODE_DUMP)
-        return dump_package(&pkg, drm, out_path);
+        return dump_package(&pkg, drm, out_path, base_name);
     else
         return extract_package(&pkg, out_path);
 }
@@ -655,7 +666,7 @@ int main(int argc, path_t **argv) {
             }
         }
 
-        if (!read_package(&drm, fp_in, out_path, mode))
+        if (!read_package(&drm, fp_in, out_path, get_basename(file_names[i]), mode))
             goto fail;
 
         //path_t print_buf[FILENAME_MAX];

@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-13 - 2026-05-29
+// Written by Edness   2024-07-13 - 2026-07-03
 #ifndef _DEFS_H_
 #define _DEFS_H_
 #include <stdio.h>
@@ -35,7 +35,6 @@ static inline uint32_t rol(uint32_t num, uint32_t bits) {
     //#define PATH_LEN 260 // FILENAME_MAX is C standard unlike MAX_PATH / PATH_MAX
     #define PATH_SEP_C '\\'
     #define PATH_SEP_S "\\"
-    #define STR "%hs"
 
     #define main wmain
     typedef uint16_t path_t;
@@ -73,7 +72,6 @@ static inline uint32_t rol(uint32_t num, uint32_t bits) {
     //#define PATH_LEN 0x1000 // 0x400 on OSX, using FILENAME_MAX
     #define PATH_SEP_C '/'
     #define PATH_SEP_S "/"
-    #define STR "%s"
 
     //#define main main
     typedef char path_t; // clang was not happy about u/int8_t

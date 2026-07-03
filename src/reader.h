@@ -1,4 +1,4 @@
-// Written by Edness   2024-07-29 - 2026-05-08
+// Written by Edness   2024-07-29 - 2026-07-03
 #ifndef _READER_H_
 #define _READER_H_
 #include <stdio.h>
@@ -145,15 +145,15 @@ static bool read_buffer(pkg_t *pkg, uint64_t *buf, uint64_t offs, uint64_t size)
 ////////////////////
 
 // null-terminated string
-static inline int32_t read_str(uint8_t *buf, uint32_t *offs, uint8_t **dst) {
-    *dst = &buf[*offs]; // no need to copy, just point to it
+static inline int32_t read_str(uint8_t *buf, uint32_t *offs, path_t *dst) {
+    //*dst = &buf[*offs]; // no need to copy, just point to it
 
     for (int i = 0; i < NAME_LEN; i++) {
         // should always be lowercase and backslashed (normalised to hash)
         // but allowing the full valid ASCII range just in case to be safe
         if ((buf[*offs] > 0x00 && buf[*offs] < 0x20) || buf[*offs] > 0x7E)
             return -1;
-        //dst[i] = buf[offs];
+        dst[i] = buf[*offs];
         if (!buf[(*offs)++]) return i; // read but not count the null char
     }
     //dst[NAME_LEN - 1] = '\x00';
