@@ -69,15 +69,6 @@ static FILE *create_file(const path_t *base_path, path_t *file_path) {
     FILE *fp_out;
     int path_len;
 
-#if IS_POSIX
-    int i = 0;
-    // PACKAGE filenames normally use backslashes
-    while (file_path[i]) {
-        if (file_path[i] == '\\')
-            file_path[i] = PATH_SEP_C;
-        i++;
-    }
-#endif
     path_len = snprintf(out_path, FILENAME_MAX, "%s" PATH_SEP_S "%s", base_path, file_path);
 
     if (path_len < 0 || path_len >= FILENAME_MAX) { // swprintf returns -1 instead???
@@ -141,7 +132,7 @@ static void get_abspath(path_t *out_path, const uint8_t mode) {
         snprintf(abs_path, FILENAME_MAX, "%s" PATH_SEP_S "%s", tmp_path, last_dir);
     }
     else { */
-    if (!mode) // neither dump nor split needs this
+    if (!(mode & MODE_STRIP))
         create_dir(out_path); // single, makes final dir
 #endif
     if (!abspath(out_path, abs_path))
@@ -333,14 +324,19 @@ static bool extract_package(pkg_t *pkg, const path_t *out_path) {
         // single line progress bar extraction test (kinda buggy with long names?)
         //printf("Extracting %3d%% %s\r", (hdr_offs * 100) / hdr_size, file_name);
 
+#if IS_POSIX
+        int i = 0;
+        // PACKAGE filenames normally use backslashes
+        while (file_path[i]) {
+            if (file_path[i] == '\\')
+                file_path[i] = PATH_SEP_C;
+            i++;
+        }
+#endif
+        printf("[%3d%%] Extracting: %s\n", hdr_offs * 100 / hdr_size, file_name);
+
         pkg->fp_out = create_file(out_path, file_name);
         if (!pkg->fp_out) goto fail;
-
-        // printing here after the path separators get fixed up by create_file
-        // one small downside is if the output path is too long, you won't see
-        // how long the filename is to try and guess how many dirs to go back.
-        // (but like anyone is gonna do that, longest path seen is ~135 chars)
-        printf("[%3d%%] Extracting: %s\n", hdr_offs * 100 / hdr_size, file_name);
 
 
         /////////////////////////////////////////
