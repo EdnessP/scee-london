@@ -405,12 +405,12 @@ static bool verify_keystore(drm_t *drm) {
 }
 
 
-static bool encrypt_keystore(drm_t *drm) {
+static bool encrypt_keystore(drm_t *drm, const bool strip) {
     // see decrypt_keystore above for docs
     uint32_t psid_hash[5] = {0};
     sha_t sha;
 
-    if (!hash_file(&sha, drm->fp, get_filesize(drm->fp)))
+    if (!hash_file(&sha, drm->fp, get_filesize(drm->fp) - (strip ? 0x100 : 0x0)))
         return false;
     sha1_copy(&sha, &drm->keystore[0x21]); // 0x84~0x98
 

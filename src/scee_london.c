@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see https://www.gnu.org/licenses/.
 
-// Written by Edness   2024-07-13 - 2026-07-03
+// Written by Edness   2024-07-13 - 2026-07-05
 
 #define VERSION "v1.4.3"
 #ifndef BUILDDATE
@@ -95,7 +95,7 @@ static path_t *get_basename(path_t *file_name) {
     //path_t *posix = strrchr(file_name, '/');
     //path_t *windows = strrchr(file_name, '\\');
     while (file_name[i]) {
-        if (is_path_sep(file_name[i]))
+        if (is_path_sep(file_name[i])) // [i++]
             base_name = &file_name[i + 1];
         i++;
     }
@@ -161,7 +161,7 @@ static bool write_keystore(FILE *fp, uint32_t *keystore, const bool overwrite) {
 
     endian_swap_keystore(keystore);
 
-    fseek(fp, overwrite ? 0x100 : 0x0, SEEK_END);
+    fseek(fp, overwrite ? -(KS_CHUNKS << 2) : 0x0, SEEK_END);
     //if (fwrite(keystore, 0x4, KS_CHUNKS, fp) != KS_CHUNKS)
     if (!fwrite(keystore, KS_CHUNKS << 2, 1, fp)) {
         print_err(ERR_PKG_FILE_WRITE);
@@ -173,12 +173,16 @@ static bool write_keystore(FILE *fp, uint32_t *keystore, const bool overwrite) {
 
 
 static bool strip_package(drm_t *drm) {
-    if (!verify_keystore(drm) || !encrypt_keystore(drm)) {
+
+    drm->has_psid = false;
+
+    if (!verify_keystore(drm) || !encrypt_keystore(drm, true)) {
         print_err(WARN_PKG_BAD_DRM_KS);
         return false;
     }
     if (!write_keystore(drm->fp, drm->keystore, true))
         return false;
+
     return true;
 }
 
@@ -204,7 +208,7 @@ static bool dump_package(pkg_t *pkg, drm_t *drm, const path_t *out_path, path_t 
     if (!write_buffer(pkg, 0x0, size)) goto fail;
 
     // keystore can only be finalised here because of the file hash
-    if (pkg->is_dlc && ((encrypt && !encrypt_keystore(drm)) ||
+    if (pkg->is_dlc && ((encrypt && !encrypt_keystore(drm, false)) ||
         !write_keystore(pkg->fp_out, drm->keystore, false)))
         goto fail;
 
@@ -425,7 +429,7 @@ static bool read_package(drm_t *drm, FILE *fp_in, path_t *out_path, path_t *base
     pkg_t pkg = {0};
 
     if (mode & MODE_STRIP)
-        printf("\nUpdating PACKAGE file: %s\n", base_name);
+        printf("\nStripping PACKAGE file: %s\n", base_name);
     else if (mode & MODE_DUMP)
         printf("\nDumping PACKAGE file: %s\n", base_name);
     else
