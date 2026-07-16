@@ -20,3 +20,16 @@ SingStar Ultimate Party (v01.10) [BCES02025, BCES02042, BCES02043, BCES02044, BC
 005AB128 38600001  ; li    r3,0x1
 005AB12C 4E800020  ; blr
 005B42CC 4BFF6E45  ; bl    0x005AB110
+
+
+== Allow loading extracted PKD files ==
+
+Patch written by ShyGuyAus
+Use on the latest version of the games as listed below
+
+SingStar Digital (v04.00) [NPEA00374, NPUA80756]
+SingStar Ultimate Party (v01.10) [BCES02025, BCES02042, BCES02043, BCES02044, BCES02045, BCES02046]
+
+007BB879 68646430  ; "hdd0"
+007BB889 68646430  ; "hdd0"
+007BB8D9 68646430  ; "hdd0"
