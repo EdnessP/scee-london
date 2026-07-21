@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Updates SongCache.xml with .pkg.drm files
+# For more info see https://github.com/EdnessP/scee-london
 
 # Usage:
 #     python  update_songcache.py  "X:\path\to\songs"
@@ -8,7 +9,7 @@
 #     -u | --user   <int> PS3 User ID (optional, leaving it as 0 also seems to work)
 #       python  update_songcache.py  "X:\path\to\songs"  -o "Y:\path\to\SongCache.xml"
 
-# Written by Edness   v1.0   2026-07-12 - 2026-07-16
+# Written by Edness   v1.0   2026-07-16
 
 import glob, os, xml.etree.ElementTree
 
