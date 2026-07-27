@@ -4,7 +4,7 @@
 
 # Usage:
 #    -k | --drmkey <hex> Your PS3's OpenPSID that was used to download from SingStore
-#       python  strip_drmkey.py  "X:\path\to\DownloadSong"  -k "0123456789ABCDEF FEDCBA9876543210"
+#       strip_drmkey.py  "X:\path\to\DownloadSong"  -k "0123456789ABCDEF FEDCBA9876543210"
 
 # Written by Edness   v1.0.1   2026-07-21
 
@@ -26,9 +26,9 @@ def get_xtea_xor_key(v1, key):
     sum = 0x0
     v0 = 0x12345678
     for i in range(20):
-        v0 = UINT32(v0 + ((v1 << 4 ^ v1 >> 5) + v1 ^ sum + key[sum & 3]))
+        v0 = UINT32(v0 + ((v1 << 4 ^ v1 >> 5) + v1 ^ sum + key[sum & 0x3]))
         sum += 0x9E3779B9
-        v1 = UINT32(v1 + ((v0 << 4 ^ v0 >> 5) + v0 ^ sum + key[(sum >> 11) & 3]))
+        v1 = UINT32(v1 + ((v0 << 4 ^ v0 >> 5) + v0 ^ sum + key[sum >> 11 & 0x3]))
     return v1 << 32 | v0
 
 def strip_keystore(path, psid):
@@ -43,11 +43,11 @@ def strip_keystore(path, psid):
         file.seek(-0x100, 2)
         keystore = file.read(0x100)
         signed = False
-        if not keystore.endswith(b"SDRM"):  # [0xFC:0x100]
+        if keystore[0xFC:] != b"SDRM":
             keystore = int.to_bytes(rsa_verify(int.from_bytes(keystore, "big"), RSA_MOD), 0x100, "big")
             signed = True
         keystore = bytearray(keystore)
-        assert keystore.endswith(b"\x00\xFE\x06\x01SDRM"), ERR_SDRM  # [0xF8:0x100]
+        assert keystore[0xF8:] == b"\x00\xFE\x06\x01SDRM", ERR_SDRM
         assert keystore[0x60:0x74] == hashlib.sha1(keystore[0x74:] + keystore[:0x60]).digest(), ERR_SDRM
         assert keystore[0x9C:0xB0] == blank_hash, ERR_SDRM
         assert keystore[0x74:0x84] == bytes.fromhex("F33964A9 46BD983F 6B1B6306 73E79E0B"), ERR_SDRM
@@ -73,12 +73,12 @@ def strip_keystore(path, psid):
             drm_key ^= blank_key
             write_ks = False
         else:
-            psid_key = int.from_bytes(hashlib.sha1(psid_hash + blank_hash).digest()[:0x10], "big")
             assert keystore[0xC4:0xD8] == hashlib.sha1(psid_hash).digest(), ERR_PSID
-            keystore[0xC4:0xD8] = bytes(0x14)
-            keystore[0xB4:0xC4] = int.to_bytes(drm_key ^ psid_key ^ blank_key, 0x10, "big")
-            keystore[0x60:0x74] = hashlib.sha1(keystore[0x74:] + keystore[:0x60]).digest()
+            psid_key = int.from_bytes(hashlib.sha1(psid_hash + blank_hash).digest()[:0x10], "big")
             drm_key ^= psid_key
+            keystore[0xC4:0xD8] = bytes(0x14)
+            keystore[0xB4:0xC4] = int.to_bytes(drm_key ^ blank_key, 0x10, "big")
+            keystore[0x60:0x74] = hashlib.sha1(keystore[0x74:] + keystore[:0x60]).digest()
             write_ks = True
         file.seek(0x0)
         target_key = int.from_bytes(file.read(0x8), "little") ^ 0x204547414B434150
